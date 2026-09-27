@@ -80,10 +80,10 @@ void main() {
       expect(parsed.label, '模块A');
     });
 
-    test('普通应用的信息文本不含 Xposed 行，解析为 false', () {
+    test('普通应用的信息文本写「Xposed 模块: 否」', () {
       final txt = formatApkInfoTxt(
           const ApkAppInfo(label: '普通应用', version: '2.0'));
-      expect(txt, isNot(contains('Xposed')));
+      expect(txt, contains('Xposed 模块: 否'));
       expect(parseApkInfoTxt(txt).xposed, isFalse);
     });
 
