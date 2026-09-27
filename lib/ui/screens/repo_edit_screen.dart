@@ -69,7 +69,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
     _packageName = TextEditingController(text: r?.packageName ?? '');
     _moduleId = TextEditingController(text: r?.moduleId ?? '');
     _displayName = TextEditingController(text: r?.displayName ?? '');
-    _fetchApkInfo = r?.fetchApkInfo ?? false;
+    _fetchApkInfo = r?.fetchApkInfo ?? true; // 新仓库默认开启
     _intervalOverride = r?.checkIntervalMinutes;
     _apkMethod = r?.apkInstallMethod;
     _installEdited = r != null; // 编辑既有仓库时不自动改写安装目录
@@ -389,7 +389,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
                 helperMaxLines: 2,
               ),
             ),
-          if (showPackageName)
+          if (host == PlatformType.android && showPackageName)
             SwitchListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
@@ -397,7 +397,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
               onChanged: (v) => setState(() => _fetchApkInfo = v),
               title: const Text('下载 APK 后自动获取图标与软件名称'),
               subtitle: const Text(
-                  '仅 Android 有效：从下载到的 APK 中读取应用名称与图标并显示在列表中',
+                  '从下载到的 APK（或已安装的应用）中读取名称、图标与版本并显示在列表中',
                   style: TextStyle(fontSize: 12)),
             ),
           const SizedBox(height: 12),

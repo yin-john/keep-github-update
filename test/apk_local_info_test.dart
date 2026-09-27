@@ -15,11 +15,19 @@ class _FakeEnv implements AndroidEnv {
   _FakeEnv(this.info);
   ApkAppInfo info;
   int calls = 0;
+  ApkAppInfo installedInfo = const ApkAppInfo();
+  int installedCalls = 0;
 
   @override
   Future<ApkAppInfo> apkAppInfo(String path) async {
     calls++;
     return info;
+  }
+
+  @override
+  Future<ApkAppInfo> installedAppInfo(String packageName) async {
+    installedCalls++;
+    return installedInfo;
   }
 
   @override
@@ -156,5 +164,45 @@ void main() {
     final info = await extractApkInfoIntoDir(env, dir);
     expect(info, isNull);
     expect(File(p.join(dir, apkNameFileName)).existsSync(), isFalse);
+  });
+
+  test('已安装应用提取：目录自动创建，图标与信息落盘', () async {
+    final dir = p.join(tmp.path, 'dl-not-exists');
+    final srcIcon = File(p.join(tmp.path, 'installed.png'))
+      ..writeAsBytesSync([4, 5, 6]);
+    final env = _FakeEnv(const ApkAppInfo())
+      ..installedInfo = ApkAppInfo(
+        label: '已装应用',
+        packageName: 'com.example.installed',
+        version: '2.0.0',
+        iconPath: srcIcon.path,
+      );
+
+    final info = await extractInstalledAppInfoIntoDir(
+        env, dir, 'com.example.installed');
+
+    expect(info?.label, '已装应用');
+    expect(info?.packageName, 'com.example.installed');
+    expect(info?.version, '2.0.0');
+    expect(info?.iconPath, p.join(dir, apkIconFileName));
+    expect(Directory(dir).existsSync(), isTrue, reason: '目录不存在时应自动创建');
+    expect(File(p.join(dir, apkIconFileName)).readAsBytesSync(), [4, 5, 6]);
+    final txt = File(p.join(dir, apkNameFileName)).readAsStringSync();
+    expect(txt, contains('名称: 已装应用'));
+    expect(txt, contains('版本: 2.0.0'));
+    expect(env.installedCalls, 1);
+  });
+
+  test('已安装应用提取：包名为空 / 应用信息为空 → 返回 null', () async {
+    final dir = p.join(tmp.path, 'dl2');
+    final env = _FakeEnv(const ApkAppInfo());
+
+    expect(await extractInstalledAppInfoIntoDir(env, dir, ''), isNull);
+    expect(await extractInstalledAppInfoIntoDir(env, dir, '  '), isNull);
+
+    final info =
+        await extractInstalledAppInfoIntoDir(env, dir, 'com.missing.app');
+    expect(info, isNull, reason: '应用未安装（空信息）时应返回 null');
+    expect(Directory(dir).existsSync(), isFalse, reason: '无信息时不应创建目录');
   });
 }

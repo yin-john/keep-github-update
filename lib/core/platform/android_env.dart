@@ -60,6 +60,10 @@ abstract class AndroidEnv {
   /// 非 Android 平台或不支持时返回空 [ApkAppInfo]。
   Future<ApkAppInfo> apkAppInfo(String path);
 
+  /// 读取已安装应用的软件名称、包名、版本与图标（图标导出为 PNG）。
+  /// 非 Android 平台、应用未安装或不支持时返回空 [ApkAppInfo]。
+  Future<ApkAppInfo> installedAppInfo(String packageName);
+
   /// 启动常驻后台服务（Android 为前台服务 + 常驻通知）。
   /// 其它平台不支持，返回 false（由上层降级处理）。
   Future<bool> startBackgroundService({String? title, String? text});
@@ -150,6 +154,10 @@ class ShellAndroidEnv extends AndroidEnv {
 
   @override
   Future<ApkAppInfo> apkAppInfo(String path) async => const ApkAppInfo();
+
+  @override
+  Future<ApkAppInfo> installedAppInfo(String packageName) async =>
+      const ApkAppInfo();
 
   @override
   Future<bool> startBackgroundService({String? title, String? text}) async =>

@@ -74,6 +74,11 @@ class FlutterAndroidEnv extends AndroidEnv {
       ApkAppInfo.fromChannel(await _invoke<Object>('apkAppInfo', {'path': path}));
 
   @override
+  Future<ApkAppInfo> installedAppInfo(String packageName) async =>
+      ApkAppInfo.fromChannel(await _invoke<Object>(
+          'installedAppInfo', {'package': packageName}));
+
+  @override
   Future<bool> startBackgroundService({String? title, String? text}) async =>
       await _invoke<bool>('startBackgroundService', {
         if (title != null) 'title': title,

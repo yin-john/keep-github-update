@@ -9,6 +9,9 @@
 /// 2. 目录里已存在两个产物文件且比目录里最新的 APK 新 → 直接复用，不重复提取；
 /// 3. 目录里存在 `*.apk` → 用**最新**的一个提取并覆盖两个文件；
 /// 4. 目录不存在 / 没有 APK / 提取失败 → 返回 null。
+///
+/// 另提供 [extractInstalledAppInfoIntoDir]：未下载过 APK 时，
+/// 从设备上**已安装的应用**提取同样的信息并写入同一组产物文件。
 library;
 
 import 'dart:io';
@@ -107,28 +110,56 @@ Future<ApkAppInfo?> extractApkInfoIntoDir(
   try {
     final info = await env.apkAppInfo(apk);
     if (info.isEmpty) return null;
-
-    // 原生提取的图标在应用私有目录，复制一份到下载目录（用户可见、可随目录保留）
-    String? iconPath;
-    if (info.iconPath != null && File(info.iconPath!).existsSync()) {
-      await File(info.iconPath!).copy(iconFile.path);
-      iconPath = iconFile.path;
-    }
-    final txt = formatApkInfoTxt(info);
-    if (txt.trim().isNotEmpty) {
-      await nameFile.writeAsString(txt);
-    }
-    if (iconPath == null && txt.trim().isEmpty) return null;
-    return ApkAppInfo(
-      label: info.label,
-      packageName: info.packageName,
-      version: info.version,
-      iconPath: iconPath,
-    );
+    return await _persistInfo(d, info);
   } catch (_) {
     // 提取失败（无权限 / 损坏的 APK 等）不影响其它流程
     return null;
   }
+}
+
+/// 从设备上**已安装的应用**提取名称/包名/版本/图标，并落盘到 [dir]
+/// （图标 `app_icon.png`、信息 `app_name.txt`，与本地 APK 提取共用同一组产物）。
+/// 目录不存在会自动创建；提取失败返回 null。
+Future<ApkAppInfo?> extractInstalledAppInfoIntoDir(
+  AndroidEnv env,
+  String dir,
+  String packageName,
+) async {
+  if (packageName.trim().isEmpty) return null;
+  try {
+    final info = await env.installedAppInfo(packageName.trim());
+    if (info.isEmpty) return null;
+    final d = Directory(dir);
+    if (!d.existsSync()) d.createSync(recursive: true);
+    return await _persistInfo(d, info);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// 把提取到的信息落盘到目录：图标复制为 app_icon.png，
+/// 名称/包名/版本写入 app_name.txt；两项皆无时返回 null
+Future<ApkAppInfo?> _persistInfo(Directory d, ApkAppInfo info) async {
+  final iconFile = File(p.join(d.path, apkIconFileName));
+  final nameFile = File(p.join(d.path, apkNameFileName));
+
+  // 原生提取的图标在应用私有目录，复制一份到下载目录（用户可见、可随目录保留）
+  String? iconPath;
+  if (info.iconPath != null && File(info.iconPath!).existsSync()) {
+    await File(info.iconPath!).copy(iconFile.path);
+    iconPath = iconFile.path;
+  }
+  final txt = formatApkInfoTxt(info);
+  if (txt.trim().isNotEmpty) {
+    await nameFile.writeAsString(txt);
+  }
+  if (iconPath == null && txt.trim().isEmpty) return null;
+  return ApkAppInfo(
+    label: info.label,
+    packageName: info.packageName,
+    version: info.version,
+    iconPath: iconPath,
+  );
 }
 
 /// 两个产物文件都存在且都比 APK 新时，视为有效缓存
