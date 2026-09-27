@@ -1,0 +1,79 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# ————————— 本项目补充规则（非源码 / 可再生成产物 / 本地状态）—————————
+
+# 平台构建中间产物（体积很大且可再生成）
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+macos/Flutter/ephemeral/
+android/.gradle/
+android/.kotlin/
+android/app/.cxx/
+android/**/build/
+# 本机路径（flutter.sdk / sdk.dir），不应提交
+android/local.properties
+
+# 本地 AI/编辑器工作状态（个人配置，不入库）
+.codebuddy/
+.vscode/
+
+# 发布与下载产物
+/dist/
+*.apk
+*.exe
+*.msi
+*.deb
+*.rpm
+*.AppImage
+
+# 运行时数据（日志/分片/续传）
+*.part
+*.resume
+grku_version.txt

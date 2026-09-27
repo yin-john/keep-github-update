@@ -1,0 +1,30 @@
+# Dart/Flutter 静态分析配置
+analyzer:
+  errors:
+    invalid_annotation_target: ignore
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - build/**
+    - android/**
+    - windows/**
+    - linux/**
+    - vendor/**
+
+linter:
+  rules:
+    - always_declare_return_types
+    - avoid_empty_else
+    # CLI / TUI 需要直接向 stdout 输出文本，故不启用 avoid_print
+    - avoid_relative_lib_imports
+    - await_only_futures
+    - camel_case_types
+    - cancel_subscriptions
+    - curly_braces_in_flow_control_structures
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - prefer_final_locals
+    - prefer_single_quotes
+    - sort_constructors_first
+    - unawaited_futures
+    - use_rethrow_when_possible

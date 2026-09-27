@@ -1,0 +1,3 @@
+# 测试配置
+# 本机并行加载测试套件偶发崩溃（loading failed），串行执行更稳定。
+concurrency: 1

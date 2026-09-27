@@ -1,0 +1,38 @@
+name: github_releases_keep_update
+description: 多端 GitHub Release 自动下载更新工具（Android/Windows/Linux，含 CLI/TUI）
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.4.3+1
+  yaml: ^3.1.2
+  yaml_writer: ^2.0.1
+  crypto: ^3.0.3
+  args: ^2.5.0
+  archive: ^3.4.10
+  dart_console2: ^2.0.0
+  flutter_local_notifications: ^17.2.3
+  shared_preferences: ^2.2.3
+  flutter_riverpod: ^2.5.1
+  file_selector: ^1.1.0
+  path: any
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.3
+
+# win32 3.1.4 在 Dart 3.x 下使用了已移除的 UnmodifiableUint8ListView；
+# 本地化并修补该类型（保留 3.x API 以兼容 dart_console2 2.0.1），
+# 使 CLI（dart compile exe）可在 Dart 3.13 下编译。GUI/APK 构建不引入 win32，无需此覆盖。
+dependency_overrides:
+  win32:
+    path: vendor/win32
+
+flutter:
+  uses-material-design: true

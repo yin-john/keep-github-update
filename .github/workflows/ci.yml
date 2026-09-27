@@ -1,0 +1,119 @@
+name: CI
+
+# 每次提交 / PR 都会执行；也可在 Actions 页面手动触发
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支连续提交时，取消上一次未完成的运行
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 可改成具体版本，例如 '3.47.5'，以获得完全可复现的构建
+  FLUTTER_CHANNEL: stable
+
+jobs:
+  # ————————————— 1. 静态分析 + 单元测试 —————————————
+  test:
+    name: 单元测试与静态分析
+    runs-on: windows-latest
+    # 防止个别用例卡住时把任务拖到默认的 6 小时
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: 静态分析（零容忍）
+        run: flutter analyze
+
+      - name: 单元测试
+        run: flutter test
+
+  # ————————————— 2. Windows 端（GUI + CLI）—————————————
+  build-windows:
+    name: 构建 Windows 端（GUI + CLI）
+    runs-on: windows-latest
+    needs: test
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: 构建 GUI（Release）
+        run: flutter build windows --release
+
+      - name: 构建 CLI（单文件 exe）
+        run: dart compile exe bin/grku.dart -o build/grku.exe
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: grku-windows
+          if-no-files-found: error
+          path: |
+            build/windows/x64/runner/Release/
+            build/grku.exe
+
+  # ————————————— 3. Android 端（分 ABI + 通用包）—————————————
+  build-android:
+    name: 构建 Android 端（分 ABI + 通用包）
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: 接受 Android SDK 许可
+        run: yes | flutter doctor --android-licenses || true
+
+      # 本地开发使用腾讯云镜像（services.gradle.org 在部分网络不可达），
+      # GitHub Runner 上改回官方源更稳定
+      - name: CI 使用官方 Gradle 源
+        run: sed -i 's#mirrors.cloud.tencent.com/gradle#services.gradle.org/distributions#g' android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: 构建分 ABI 包（arm32 / arm64 / x86_64）
+        run: flutter build apk --release --split-per-abi
+
+      - name: 构建通用包（合并）
+        run: flutter build apk --release
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: grku-android
+          if-no-files-found: error
+          path: build/app/outputs/flutter-apk/*.apk

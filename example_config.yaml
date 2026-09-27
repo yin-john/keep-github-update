@@ -1,0 +1,52 @@
+# GRKU 示例配置（放到应用数据同名目录下的 config.yaml，或自定义路径）
+# Windows: %APPDATA%\github_releases_keep_update\config.yaml
+# Linux:   ~/.config/github_releases_keep_update/config.yaml
+# 可用 `grku config import example_config.yaml` 导入
+configVersion: 1         # 配置格式版本（旧配置缺省按 1 处理）
+githubToken: ""          # 可选；留空则用匿名 API（60 次/小时）或直链模式
+systemNotificationsEnabled: true
+downloadDir: ""          # 留空用默认目录；Android 默认在公共存储 <外部存储>/grku/downloads（需存储权限）
+forceInstallIgnoreSignature: false   # Android：签名不一致时强制安装（需 root，会先卸载原应用，数据将丢失）
+mirrors:
+  - name: ghproxy
+    mode: prefix
+    pattern: "https://github.com"
+    replacement: "https://ghproxy.com/https://github.com"
+webhook:
+  enabled: false
+  url: ""
+  events: [updateAvailable, updateSuccess, updateFailed]
+repos:
+  - id: "neovim/neovim"
+    owner: neovim
+    repo: neovim
+    tagFilter: null
+    assetRules:
+      - platform: windows
+        strategy: portable
+        nameRegex: ".*win64.*\\.zip$"
+        verifyChecksum: true        # 下载后自动查找并校验 app.zip.sha256
+        checksumType: sha256
+    installDir: "C:\\Tools\\neovim"
+    lastInstalledTag: null
+    notificationsEnabled: true
+  - id: "Magisk-Modules-Alt-Repo/zygisk-assistant"
+    owner: Magisk-Modules-Alt-Repo
+    repo: zygisk-assistant
+    assetRules:
+      - platform: android
+        strategy: module
+        nameRegex: ".*\\.zip$"
+  - id: "owner/some-app"
+    owner: owner
+    repo: some-app
+    apkInstallMethod: shizuku      # 该仓库优先用 Shizuku 静默安装；可选 root
+    assetRules:
+      - platform: android
+        strategy: apk
+        nameRegex: ".*arm64.*\\.apk$"
+        arch: arm64                 # 仅在 arm64 设备上匹配此规则
+      - platform: android
+        strategy: apk
+        nameRegex: ".*arm32.*\\.apk$"
+        arch: arm32                 # 仅在 arm32 设备上匹配此规则
