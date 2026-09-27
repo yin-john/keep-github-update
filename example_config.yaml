@@ -8,7 +8,7 @@ systemNotificationsEnabled: true
 downloadDir: ""          # 留空用默认目录；Android 默认在公共存储 <外部存储>/grku/downloads（需存储权限）
 checkIntervalMinutes: 360            # 全局自动检测间隔（分钟）；0 = 关闭自动检测
 backgroundKeepAlive: false           # 后台保活 + 常驻通知栏（Android 为前台服务；桌面端关闭窗口不退出）
-forceInstallIgnoreSignature: false   # Android：签名不一致时强制安装（需 root，会先卸载原应用，数据将丢失；对本应用自身的更新无效）
+forceInstallIgnoreSignature: false   # Android：签名不一致时强制安装（实验性功能，原则上不会丢数据）
 mirrors:
   - name: ghproxy
     mode: prefix
