@@ -104,5 +104,33 @@ void main() {
       expect(re.hasMatch('App-1.2.3-win64.exe'), isTrue);
       expect(re.hasMatch('setup-x64.exe'), isFalse);
     });
+
+    test('压缩包预设（Portable 压缩包）匹配 zip/7z/tar.gz 等', () {
+      final presets = systemRulePresets[PlatformType.windows]!;
+      final preset =
+          presets.firstWhere((e) => e.name.contains('Portable 压缩包'));
+
+      expect(preset.rule.strategy, UpdateStrategy.portable);
+      final re = RegExp(preset.rule.nameRegex);
+      expect(re.hasMatch('app-1.0.zip'), isTrue);
+      expect(re.hasMatch('app-1.0.ZIP'), isTrue);
+      expect(re.hasMatch('app-1.0.7z'), isTrue);
+      expect(re.hasMatch('app-1.0.tar.gz'), isTrue);
+      expect(re.hasMatch('app-1.0.tar.xz'), isTrue);
+      expect(re.hasMatch('app-1.0.tgz'), isTrue);
+      expect(re.hasMatch('app-1.0.exe'), isFalse);
+      expect(re.hasMatch('app-1.0.apk'), isFalse);
+    });
+
+    test('Linux 压缩包预设存在且不含其他系统分组之外的策略', () {
+      final presets = systemRulePresets[PlatformType.linux]!;
+      final preset =
+          presets.firstWhere((e) => e.name.contains('Portable 压缩包'));
+      expect(preset.rule.platform, PlatformType.linux);
+      expect(preset.rule.strategy, UpdateStrategy.portable);
+      final re = RegExp(preset.rule.nameRegex);
+      expect(re.hasMatch('tool-2.0.tar.gz'), isTrue);
+      expect(re.hasMatch('tool-2.0.AppImage'), isFalse);
+    });
   });
 }

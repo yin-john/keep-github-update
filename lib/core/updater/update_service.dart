@@ -114,6 +114,23 @@ class UpdateService {
     );
   }
 
+  /// 列出仓库的全部 release（含预发布；「更多版本」页用）
+  Future<List<Release>> listReleases(RepoConfig repo) =>
+      fetcher.listReleases(repo.owner, repo.repo);
+
+  /// 为指定 release 生成检测结果（资产匹配 + 构造 UpdateCheck），
+  /// 供「更多版本」页手动下载安装指定版本
+  Future<UpdateCheck> checkRelease(RepoConfig repo, Release release) async {
+    final match =
+        matcher.match(release, currentPlatform, repo.assetRules, deviceArch);
+    return UpdateCheck(
+      repo: repo,
+      release: release,
+      match: match,
+      hasUpdate: true,
+    );
+  }
+
   Future<Map<String, String>> _modules() async {
     if (_modulesCache != null) return _modulesCache!;
     final r = device == null

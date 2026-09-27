@@ -19,21 +19,14 @@ class RulePreset { // 预填规则
 const Map<PlatformType, List<RulePreset>> systemRulePresets = {
   PlatformType.windows: [
     RulePreset(
-      name: 'Portable ZIP',
-      description: '匹配名称含 windows/win 的 .zip，解压覆盖到安装目录',
+      name: 'Portable 压缩包',
+      description:
+          '匹配 zip / 7z / tar.gz / tar.xz 等压缩包，解压覆盖到安装目录',
       rule: AssetRule(
         platform: PlatformType.windows,
         strategy: UpdateStrategy.portable,
-        nameRegex: r'.*([Ww]indows|win).*\.zip$',
-      ),
-    ),
-    RulePreset(
-      name: 'Portable 7z',
-      description: '匹配 .7z 便携压缩包',
-      rule: AssetRule(
-        platform: PlatformType.windows,
-        strategy: UpdateStrategy.portable,
-        nameRegex: r'.*\.7z$',
+        nameRegex:
+            r'(?i).*\.(zip|7z|tar(\.(gz|bz2|xz|zst))?|tgz|tbz2|gz|bz2|xz)$',
       ),
     ),
     RulePreset(
@@ -58,12 +51,14 @@ const Map<PlatformType, List<RulePreset>> systemRulePresets = {
   ],
   PlatformType.linux: [
     RulePreset(
-      name: 'Portable tar.gz',
-      description: '匹配 linux 相关的 .tar.gz',
+      name: 'Portable 压缩包',
+      description:
+          '匹配 tar.gz / tar.xz / zip 等压缩包，解压覆盖到安装目录',
       rule: AssetRule(
         platform: PlatformType.linux,
         strategy: UpdateStrategy.portable,
-        nameRegex: r'.*([Ll]inux).*\.tar\.gz$',
+        nameRegex:
+            r'(?i).*\.(zip|7z|tar(\.(gz|bz2|xz|zst))?|tgz|tbz2|gz|bz2|xz)$',
       ),
     ),
     RulePreset(

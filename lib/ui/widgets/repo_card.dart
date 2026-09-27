@@ -22,6 +22,9 @@ class RepoCard extends StatelessWidget { // 非空则显示「重试安装」（
     this.selected = false,
     this.onSelected,
     this.onRetryInstall,
+    this.onLaunch,
+    this.onMoreVersions,
+    this.onRepoDetails,
   });
   final RepoConfig repo;
   final String? status; // 更新状态文本
@@ -38,6 +41,9 @@ class RepoCard extends StatelessWidget { // 非空则显示「重试安装」（
   final bool selected; // 是否被勾选（批量更新用）
   final ValueChanged<bool?>? onSelected; // 非空则显示勾选框
   final VoidCallback? onRetryInstall;
+  final VoidCallback? onLaunch; // 非空则显示「启动」按钮（Android 已知包名 / 桌面已配置启动文件）
+  final VoidCallback? onMoreVersions; // 「更多版本」菜单项（历史版本下载页）
+  final VoidCallback? onRepoDetails; // 「仓库详情」菜单项（仓库地址 + 外部浏览器）
 
   Color get _statusColor {
     if (hasUpdate == true) return const Color(0xFF22C55E); // 可更新：绿
@@ -97,6 +103,38 @@ class RepoCard extends StatelessWidget { // 非空则显示「重试安装」（
                       icon: const Icon(Icons.delete_sweep_outlined, size: 18),
                       onPressed: onClearDownloads,
                       tooltip: '清空下载'),
+                if (onMoreVersions != null || onRepoDetails != null)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    tooltip: '更多',
+                    onSelected: (key) {
+                      if (key == 'versions') {
+                        onMoreVersions?.call();
+                      } else if (key == 'details') {
+                        onRepoDetails?.call();
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      if (onMoreVersions != null)
+                        const PopupMenuItem(
+                          value: 'versions',
+                          child: Row(children: [
+                            Icon(Icons.history, size: 18),
+                            SizedBox(width: 8),
+                            Text('更多版本'),
+                          ]),
+                        ),
+                      if (onRepoDetails != null)
+                        const PopupMenuItem(
+                          value: 'details',
+                          child: Row(children: [
+                            Icon(Icons.info_outline, size: 18),
+                            SizedBox(width: 8),
+                            Text('仓库详情'),
+                          ]),
+                        ),
+                    ],
+                  ),
                 IconButton(
                     icon: const Icon(Icons.edit, size: 18),
                     onPressed: onEdit,
@@ -151,6 +189,11 @@ class RepoCard extends StatelessWidget { // 非空则显示「重试安装」（
                       onPressed: onOpenFolder,
                       icon: const Icon(Icons.folder_open),
                       label: const Text('打开文件夹')),
+                if (onLaunch != null)
+                  OutlinedButton.icon(
+                      onPressed: onLaunch,
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('启动')),
               ],
             ),
           ],

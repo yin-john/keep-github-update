@@ -5,12 +5,16 @@ class RuleEditor extends StatefulWidget {
 
   const RuleEditor({
     super.key,
+    required this.platform,
     required this.initial,
     required this.onChanged,
     this.onRemove,
     this.selected = false,
     this.onSelect,
   });
+
+  /// 所属平台（固定为当前宿主系统，不再提供平台下拉框）
+  final PlatformType platform;
   final AssetRule initial;
   final ValueChanged<AssetRule> onChanged;
   final VoidCallback? onRemove;
@@ -24,7 +28,6 @@ class RuleEditor extends StatefulWidget {
 }
 
 class _RuleEditorState extends State<RuleEditor> {
-  late PlatformType _platform;
   late UpdateStrategy _strategy;
   late TargetArch _arch;
   late bool _verify;
@@ -38,10 +41,9 @@ class _RuleEditorState extends State<RuleEditor> {
   @override
   void initState() {
     super.initState();
-    _platform = widget.initial.platform;
     _strategy = widget.initial.strategy;
-    if (!_platform.supportsStrategy(_strategy)) {
-      _strategy = _platform.strategies.first;
+    if (!widget.platform.supportsStrategy(_strategy)) {
+      _strategy = widget.platform.strategies.first;
     }
     _arch = widget.initial.arch;
     _verify = widget.initial.verifyChecksum;
@@ -79,7 +81,6 @@ class _RuleEditorState extends State<RuleEditor> {
     final incoming = widget.initial;
     if (incoming != _currentRule) {
       setState(() {
-        _platform = incoming.platform;
         _strategy = incoming.platform.supportsStrategy(incoming.strategy)
             ? incoming.strategy
             : incoming.platform.strategies.first;
@@ -109,7 +110,7 @@ class _RuleEditorState extends State<RuleEditor> {
   }
 
   AssetRule _buildRule() => AssetRule(
-        platform: _platform,
+        platform: widget.platform,
         strategy: _strategy,
         nameRegex: _regex.text,
         checksumRegex: _csRegex.text.isEmpty ? null : _csRegex.text,
@@ -245,28 +246,6 @@ class _RuleEditorState extends State<RuleEditor> {
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButton<PlatformType>(
-                      value: _platform,
-                      isExpanded: true,
-                      onChanged: (v) => setState(() {
-                        _platform = v!;
-                        // 切换平台时回退到该平台的合法策略/架构，避免残留其它平台选项
-                        if (!_platform.supportsStrategy(_strategy)) {
-                          _strategy = _platform.strategies.first;
-                        }
-                        if (_platform != PlatformType.android) {
-                          _arch = TargetArch.any;
-                        }
-                        _emit();
-                      }),
-                      items: PlatformType.values
-                          .map((e) => DropdownMenuItem(
-                              value: e, child: Text(e.name)))
-                          .toList(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
                     child: DropdownButton<UpdateStrategy>(
                       value: _strategy,
                       isExpanded: true,
@@ -274,7 +253,7 @@ class _RuleEditorState extends State<RuleEditor> {
                         _strategy = v!;
                         _emit();
                       }),
-                      items: _platform.strategies
+                      items: widget.platform.strategies
                           .map((e) => DropdownMenuItem(
                               value: e, child: Text(e.label)))
                           .toList(),
@@ -282,7 +261,7 @@ class _RuleEditorState extends State<RuleEditor> {
                   ),
                 ],
               ),
-              if (_platform == PlatformType.android)
+              if (widget.platform == PlatformType.android)
                 DropdownButton<TargetArch>(
                   value: _arch,
                   isExpanded: true,

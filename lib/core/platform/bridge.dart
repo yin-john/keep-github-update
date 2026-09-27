@@ -83,6 +83,15 @@ abstract class PlatformBridge {
 
   /// 在系统文件管理器中打开目录（Windows/Linux/macOS）
   Future<void> openFolder(String path);
+
+  /// 用系统浏览器打开 URL（Windows/Linux；Android 走 AndroidEnv.openUrl）
+  Future<void> openExternal(String url);
+
+  /// Windows/Linux：启动便携版应用。
+  /// [file] 为相对 [installDir] 的启动文件；[cmd] 非空时作为完整命令
+  /// 在安装目录下执行（覆盖直接启动文件的默认行为）。
+  Future<void> launchPortableApp(
+      {required String installDir, required String file, String? cmd});
 }
 
 class DefaultPlatformBridge implements PlatformBridge {
@@ -432,6 +441,44 @@ class DefaultPlatformBridge implements PlatformBridge {
     } else {
       throw UnsupportedError('当前平台不支持打开文件夹');
     }
+  }
+
+  @override
+  Future<void> openExternal(String url) async {
+    if (Platform.isWindows) {
+      await Process.start('rundll32', ['url.dll,FileProtocolHandler', url],
+          mode: ProcessStartMode.detached);
+    } else if (Platform.isLinux) {
+      await Process.start('xdg-open', [url], mode: ProcessStartMode.detached);
+    } else if (Platform.isMacOS) {
+      await Process.start('open', [url], mode: ProcessStartMode.detached);
+    } else {
+      throw UnsupportedError('当前平台不支持外部浏览器打开');
+    }
+  }
+
+  @override
+  Future<void> launchPortableApp(
+      {required String installDir, required String file, String? cmd}) async {
+    final c = cmd?.trim() ?? '';
+    // 命令非空：作为完整命令在安装目录下执行（覆盖默认行为）
+    if (c.isNotEmpty) {
+      final shell = Platform.isWindows ? 'cmd' : 'sh';
+      final args =
+          Platform.isWindows ? ['/c', c] : ['-c', c];
+      await Process.start(shell, args,
+          workingDirectory: installDir, mode: ProcessStartMode.detached);
+      return;
+    }
+    final exe = p.join(installDir, file);
+    if (Platform.isLinux) {
+      // 确保可执行权限（新解压的文件可能没有 +x）
+      try {
+        await Process.run('chmod', ['+x', exe]);
+      } catch (_) {}
+    }
+    await Process.start(exe, [],
+        workingDirectory: installDir, mode: ProcessStartMode.detached);
   }
 
   Future<void> _showWindowsToast(String title, String body) async {

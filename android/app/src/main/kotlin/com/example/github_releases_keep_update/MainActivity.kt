@@ -47,6 +47,10 @@ class MainActivity : FlutterActivity() {
                     "apkAppInfo" -> result.success(apkAppInfo(call.argument<String>("path")))
                     // 读取已安装应用的软件名称、包名、版本与图标
                     "installedAppInfo" -> result.success(installedAppInfo(call.argument<String>("package")))
+                    // 启动已安装应用（XP 模块优先尝试打开 LSPosed 模块配置）
+                    "launchApp" -> result.success(launchApp(call.argument<String>("package")))
+                    // 用系统浏览器打开 URL
+                    "openUrl" -> result.success(openUrl(call.argument<String>("url")))
                     // 常驻通知栏 + 后台保活（前台服务）
                     "startBackgroundService" -> result.success(
                         startBackgroundService(
@@ -268,6 +272,59 @@ class MainActivity : FlutterActivity() {
             )
         } catch (e: Exception) {
             null
+        }
+    }
+
+    /**
+     * 启动已安装应用。
+     * 若目标应用声明了 xposedmodule 元数据（XP/LSPosed 模块），先尝试打开
+     * LSPosed 管理器（模块配置入口），失败则回退直接打开该应用的启动页。
+     */
+    private fun launchApp(pkg: String?): Boolean {
+        if (pkg.isNullOrBlank()) return false
+        return try {
+            val pm = packageManager
+            val isXposed = try {
+                val info = pm.getApplicationInfo(pkg, PackageManager.GET_META_DATA)
+                val md = info.metaData
+                md?.getBoolean("xposedmodule", false) == true ||
+                    md?.get("xposedmodule")?.toString() == "true"
+            } catch (e: Exception) {
+                false
+            }
+            if (isXposed) {
+                try {
+                    val lsposed = Intent(Intent.ACTION_MAIN)
+                        .setClassName(
+                            "org.lsposed.manager",
+                            "org.lsposed.manager.ui.activity.MainActivity"
+                        )
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(lsposed)
+                    return true
+                } catch (e: Exception) {
+                    // LSPosed 未安装或入口未导出 → 回退直接打开应用
+                }
+            }
+            val intent = pm.getLaunchIntentForPackage(pkg) ?: return false
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 用系统浏览器打开 URL */
+    private fun openUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 

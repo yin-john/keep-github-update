@@ -11,6 +11,7 @@ import '../providers/app_providers.dart';
 import '../providers/check_providers.dart';
 import '../widgets/module_terminal.dart';
 import '../widgets/repo_card.dart';
+import 'releases_screen.dart';
 import 'repo_edit_screen.dart';
 
 class RepoListScreen extends ConsumerStatefulWidget {
@@ -43,6 +44,88 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
 
   /// Windows/Linux 下提供「打开文件夹」
   bool get _canOpenFolder => Platform.isWindows || Platform.isLinux;
+
+  /// 「启动」按钮可见性：
+  /// - Android：已知包名（配置或自动反查）即可直接打开应用
+  /// - 桌面端：需在创建/编辑仓库时指定「启动文件」；未指定则不显示
+  bool _canLaunch(RepoConfig r) {
+    if (Platform.isAndroid) {
+      return r.packageName?.isNotEmpty ?? false;
+    }
+    return r.launchFile?.isNotEmpty ?? false;
+  }
+
+  /// 启动仓库对应的应用
+  Future<void> _launchRepo(RepoConfig r) async {
+    try {
+      if (Platform.isAndroid) {
+        final pkg = r.packageName;
+        if (pkg == null || pkg.isEmpty) return;
+        final ok = await ref.read(androidEnvProvider).launchApp(pkg);
+        if (!ok) _snack('无法打开应用：请确认已安装且有启动入口');
+        return;
+      }
+      final dir = r.installDir;
+      if (dir == null || dir.isEmpty) {
+        _snack('未配置安装目录，无法启动');
+        return;
+      }
+      await ref.read(platformBridgeProvider).launchPortableApp(
+          installDir: dir, file: r.launchFile!, cmd: r.launchCmd);
+    } catch (e) {
+      _snack('启动失败: $e');
+    }
+  }
+
+  /// 仓库详情：仓库地址 + 外部浏览器打开
+  Future<void> _showRepoDetails(RepoConfig r) {
+    final url = 'https://github.com/${r.owner}/${r.repo}';
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('仓库详情 · ${r.fullName}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('仓库地址',
+                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+            SelectableText(url,
+                style: const TextStyle(color: Color(0xFF60A5FA))),
+            const SizedBox(height: 6),
+            Text('最新版本：${_stateOf(r.fullName).latest ?? '未检测'}',
+                style: const TextStyle(fontSize: 13)),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('关闭')),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openExternal(url);
+            },
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: const Text('外部浏览器打开'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 用系统浏览器打开 URL（Android 原生 intent；桌面走 bridge）
+  Future<void> _openExternal(String url) async {
+    try {
+      if (Platform.isAndroid) {
+        await ref.read(androidEnvProvider).openUrl(url);
+      } else {
+        await ref.read(platformBridgeProvider).openExternal(url);
+      }
+    } catch (e) {
+      _snack('无法打开浏览器: $e');
+    }
+  }
 
   /// 对应目录：优先安装目录，其次该仓库的下载目录
   String _folderFor(RepoConfig r) =>
@@ -551,6 +634,13 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
                   onRetryInstall: st.canRetryInstall
                       ? () => _retryInstall(r)
                       : null,
+                  onLaunch: _canLaunch(r) ? () => _launchRepo(r) : null,
+                  onMoreVersions: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => ReleasesScreen(repo: r)),
+                  ),
+                  onRepoDetails: () => _showRepoDetails(r),
                   onDelete: () async {
                     await ref
                         .read(configProvider.notifier)

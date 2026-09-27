@@ -7,7 +7,7 @@
 library;
 
 /// 源码中的默认版本（应与 pubspec.yaml 的 version 相同，不含 +构建号）
-const String appVersionDefault = '0.2.6';
+const String appVersionDefault = '0.2.7';
 
 /// 当前版本号
 const String appVersion = String.fromEnvironment(
