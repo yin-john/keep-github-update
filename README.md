@@ -56,6 +56,22 @@ grku tui                      # 交互式终端界面
 
 配置为 YAML/JSON，带 `configVersion` 字段（当前为 2；旧配置缺省按 1 处理，加载时自动补齐新增字段）；示例见 `example_config.yaml`。
 
+## 开发流程（CI 在 GitHub 上跑）
+
+分析与测试都由 GitHub Actions 负责，本地不必执行 `flutter analyze` / `flutter test`：
+
+1. 改动推到分支并开 PR：CI 只跑「静态分析（零容忍）+ 单元测试」；
+2. 检查通过后合并到 `main`：CI 自动构建 Windows GUI / CLI 与 Android 的分 ABI + 通用包；
+3. 构建成功且配置了签名密钥时会按 `pubspec.yaml` 的版本号自动创建 Release（同一版本已存在则跳过，可先删旧 Release 再重发）。
+
+本地排查失败时可用 `gh` 读取日志：
+
+```bash
+gh pr checks                 # 查看当前 PR 的检查结果
+gh run list --limit 5        # 最近的运行
+gh run view <run-id> --log-failed   # 只看失败步骤的日志
+```
+
 ## 目录结构
 
 ```
