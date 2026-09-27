@@ -155,6 +155,59 @@ void main() {
     expect(env.calls, 0, reason: '命中缓存不应调用原生');
   });
 
+  test('结构化缓存缺「Xposed 模块:」行（旧版产生）→ 视为过期重新提取', () async {
+    final dir = p.join(tmp.path, 'dl');
+    Directory(dir).createSync(recursive: true);
+    apkIn(dir, 'app.apk')
+        .setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 1)));
+    final srcIcon = File(p.join(tmp.path, 'src.png'))
+      ..writeAsBytesSync([8, 8]);
+    File(p.join(dir, apkIconFileName)).writeAsBytesSync([1]);
+    // 旧版结构化格式：有「名称:」但无 Xposed 行
+    File(p.join(dir, apkNameFileName))
+        .writeAsStringSync('名称: 旧缓存应用\n包名: com.old\n版本: 1.0\n');
+    final env = _FakeEnv(const ApkAppInfo(
+      label: '重提取应用',
+      packageName: 'com.new',
+      iconPath: srcIcon.path,
+      xposed: true,
+    ));
+
+    final info = await extractApkInfoIntoDir(env, dir);
+
+    expect(env.calls, 1, reason: '缺 Xposed 标记的旧缓存应重新提取');
+    expect(info?.label, '重提取应用');
+    expect(info?.xposed, isTrue);
+    // 重提取后的缓存包含 Xposed 行，再次调用命中缓存
+    final again = await extractApkInfoIntoDir(env, dir);
+    expect(again?.xposed, isTrue);
+    expect(env.calls, 1, reason: '新缓存应直接命中');
+    expect(
+        File(p.join(dir, apkNameFileName)).readAsStringSync(),
+        contains('Xposed 模块: 是'));
+  });
+
+  test('Xposed 应用：提取结果带 xposed 标记并写入缓存', () async {
+    final dir = p.join(tmp.path, 'dl');
+    Directory(dir).createSync(recursive: true);
+    final apk = apkIn(dir, 'app.apk')
+      ..setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 1)));
+    final srcIcon = File(p.join(tmp.path, 'src.png'))
+      ..writeAsBytesSync([9, 9]);
+    final env = _FakeEnv(ApkAppInfo(
+      label: 'XP 模块',
+      packageName: 'com.xp.mod',
+      iconPath: srcIcon.path,
+      xposed: true,
+    ));
+
+    final info = await extractApkInfoIntoDir(env, dir, apkPath: apk.path);
+
+    expect(info?.xposed, isTrue);
+    final txt = File(p.join(dir, apkNameFileName)).readAsStringSync();
+    expect(txt, contains('Xposed 模块: 是'));
+  });
+
   test('原生提取失败 / 返回空信息：返回 null 且不崩溃', () async {
     final dir = p.join(tmp.path, 'dl');
     Directory(dir).createSync(recursive: true);

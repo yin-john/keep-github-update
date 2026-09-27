@@ -53,7 +53,8 @@ String formatApkInfoTxt(ApkAppInfo info) {
     b.writeln('包名: ${info.packageName}');
   }
   if (info.version?.isNotEmpty ?? false) b.writeln('版本: ${info.version}');
-  if (info.xposed) b.writeln('Xposed 模块: 是');
+  // 始终写入（是/否）：缓存文本缺该行说明产生于 Xposed 识别之前，需重提取
+  b.writeln('Xposed 模块: ${info.xposed ? '是' : '否'}');
   return b.toString();
 }
 
@@ -176,5 +177,11 @@ ApkAppInfo? _cachedResult(String apk, File nameFile, File iconFile) {
       iconFile.lastModifiedSync().isBefore(apkTime)) {
     return null; // APK 比缓存新（刚更新过），需要重新提取
   }
-  return parseApkInfoTxt(nameFile.readAsStringSync(), iconPath: iconFile.path);
+  final content = nameFile.readAsStringSync();
+  // 结构化文本但缺「Xposed 模块:」行 → 产生于 Xposed 识别功能之前，
+  // 视为过期：重提取一次以获得分类标记（旧版单行纯名称格式不受影响）
+  if (content.contains('名称:') && !content.contains('Xposed 模块:')) {
+    return null;
+  }
+  return parseApkInfoTxt(content, iconPath: iconFile.path);
 }
