@@ -174,6 +174,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
       return;
     }
     final rules = _drafts.map((d) => d.rule).toList();
+    final host = _hostPlatform();
     final r = RepoConfig(
       id: widget.repo?.id ?? '${_owner.text}/${_repo.text}',
       owner: _owner.text,
