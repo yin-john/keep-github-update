@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:github_releases_keep_update/core/config/config_repository.dart';
 import 'package:github_releases_keep_update/core/config/models.dart';
+import 'package:path/path.dart' as p;
 
 import 'support/fs.dart';
 
@@ -31,17 +32,20 @@ void main() {
   setUp(() => dir = Directory.systemTemp.createTempSync('grku_export_'));
   tearDown(() => deleteDirQuietly(dir));
 
-  test('保存的配置带版本号与 Android 字段', () async {
+  test('保存时拆分：软件配置（无 repos）+ 仓库配置，均为 v4', () async {
     final path = '${dir.path}/config.yaml';
     await ConfigRepository(path).save(_cfg(repos: const [_androidRepo]));
 
-    final text = File(path).readAsStringSync();
-    expect(text, contains('configVersion: $currentConfigVersion'));
-    // YAML 写出时字符串会带引号，这里只校验字段名与取值
-    expect(text, contains('packageName'));
-    expect(text, contains('com.example.app'));
-    expect(text, contains('moduleId'));
-    expect(text, contains('my_module'));
+    final appText = File(path).readAsStringSync();
+    expect(appText, contains('configVersion: $currentConfigVersion'));
+    expect(appText, isNot(contains('repos:')), reason: '仓库应拆分到 repos.yaml');
+
+    final reposText = File(p.join(dir.path, 'repos.yaml')).readAsStringSync();
+    expect(reposText, contains('configVersion: $currentConfigVersion'));
+    expect(reposText, contains('packageName'));
+    expect(reposText, contains('com.example.app'));
+    expect(reposText, contains('moduleId'));
+    expect(reposText, contains('my_module'));
 
     final back = await ConfigRepository(path).load();
     expect(back.configVersion, currentConfigVersion);
@@ -49,13 +53,20 @@ void main() {
     expect(back.repos.single.moduleId, 'my_module');
   });
 
-  test('旧版配置（无版本号）按 1 处理，可正常加载', () async {
+  test('旧版单文件配置加载时自动拆分并转换（备份原文件）', () async {
     final path = '${dir.path}/old.yaml';
     File(path).writeAsStringSync(
-        'webhook:\n  enabled: false\n  url: ""\n  events: []\nrepos: []\n');
+        'configVersion: 1\nwebhook:\n  enabled: false\n  url: ""\n  events: []\n'
+        'repos:\n  - id: a/b\n    owner: a\n    repo: b\n'
+        '    assetRules:\n      - platform: android\n'
+        '        strategy: apk\n        nameRegex: ".*\\\\.apk\$"\n');
     final cfg = await ConfigRepository(path).load();
-    expect(cfg.configVersion, 1);
-    expect(cfg.repos, isEmpty);
+    expect(cfg.configVersion, currentConfigVersion);
+    expect(cfg.repos.single.fullName, 'a/b');
+    expect(File(p.join(dir.path, 'repos.yaml')).existsSync(), isTrue);
+    expect(File('$path.bak').existsSync(), isTrue);
+    expect(File(path).readAsStringSync(), isNot(contains('repos:')));
+    expect((await ConfigRepository(path).load()).repos.single.fullName, 'a/b');
   });
 
   test('导出配置文件后可再次导入（写盘 + 读取）', () async {
@@ -83,6 +94,8 @@ void main() {
     final path = '${dir.path}/nested/deep/config.yaml';
     await ConfigRepository(path).save(_cfg());
     expect(File(path).existsSync(), isTrue);
+    expect(File(p.join(dir.path, 'nested/deep/repos.yaml')).existsSync(),
+        isTrue);
   });
 
   test('导入空路径 / 空文件 / 不存在的文件都不会清空现有配置', () async {

@@ -5,8 +5,11 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/config/app_paths.dart';
 import '../../core/config/models.dart';
 import '../../core/config/repo_display.dart';
+import '../../core/platform/apk_info.dart';
+import '../../core/platform/apk_local_info.dart';
 import '../../core/scheduler/check_schedule.dart';
 import '../../core/scheduler/update_scheduler.dart';
 import '../../core/updater/update_service.dart';
@@ -107,6 +110,18 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
   Future<void> learnIdentityFor(RepoConfig r, String tag) =>
       _learnIdentity(r, tag);
 
+  /// 从仓库下载目录里已下载的 APK 提取名称/图标（结果落盘到该目录）
+  Future<ApkAppInfo?> _extractLocalApkInfo(RepoConfig r) async {
+    try {
+      final cfg = ref.read(configProvider);
+      final dir = repoDownloadDir(r.owner, r.repo, baseDir: cfg.downloadDir);
+      return await extractApkInfoIntoDir(ref.read(androidEnvProvider), dir);
+    } catch (e) {
+      AppLog.warn('从本地 APK 提取名称/图标失败：$e');
+      return null;
+    }
+  }
+
   /// 依据设备上读到的版本反查并补全包名 / 模块 ID
   Future<void> _learnIdentity(RepoConfig r, String? tag) async {
     if ((r.packageName?.isNotEmpty ?? false) ||
@@ -145,6 +160,16 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
       };
       _persistAfterCheck(r, c, now);
       await _learnIdentity(r, c.installedVersion ?? r.lastInstalledTag);
+      // Android：本地已下载过 APK 且还没有名称/图标时，优先从本地提取
+      if (r.fetchApkInfo &&
+          r.isApkRepo &&
+          ((r.apkLabel?.isEmpty ?? true) || (r.apkIconPath?.isEmpty ?? true))) {
+        final info = await _extractLocalApkInfo(r);
+        if (info != null && info.isNotEmpty) {
+          _applyApkInfo(ref.read(configProvider),
+              ref.read(configProvider.notifier), r, info);
+        }
+      }
       if (notify && c.hasUpdate && r.notificationsEnabled) {
         await ref.read(systemNotifierProvider).show(
             '${_displayName(r)} 有可用更新',
@@ -206,31 +231,57 @@ final schedulerProvider = Provider<UpdateScheduler>((ref) {
   return scheduler;
 });
 
-/// 读取 APK 的软件名称与图标，写入仓库配置（Android，需开启「自动获取」）
-Future<void> fetchApkInfoForRepo(
-    WidgetRef ref, RepoConfig r, String apkPath) async {
-  if (!r.fetchApkInfo || !r.isApkRepo) return;
-  if (!Platform.isAndroid) return;
+/// 获取仓库的 APK 名称与图标（Android，需开启「自动获取」）。
+///
+/// **优先使用本地已下载的 APK**：
+/// - [apkPath] 指定（刚下载完成）→ 直接从该 APK 提取；
+/// - 否则在仓库的下载目录里找最新的 `*.apk` 提取。
+/// 产物落在下载目录：图标 `app_icon.png`、名称 `app_name.txt`，
+/// 并写入仓库配置供列表显示（图标/名称取自这些本地文件）。
+Future<ApkAppInfo?> fetchApkInfoForRepo(
+    WidgetRef ref, RepoConfig r,
+    {String? apkPath}) async {
+  if (!r.fetchApkInfo || !r.isApkRepo) return null;
+  if (!Platform.isAndroid) return null;
   try {
-    final info =
-        await ref.read(androidEnvProvider).apkAppInfo(apkPath);
-    if (info.isEmpty) {
-      AppLog.warn('未能从 ${r.fullName} 的 APK 读取名称/图标');
-      return;
+    final cfg = ref.read(configProvider);
+    final dir = repoDownloadDir(r.owner, r.repo, baseDir: cfg.downloadDir);
+    final info = await extractApkInfoIntoDir(
+        ref.read(androidEnvProvider), dir,
+        apkPath: apkPath);
+    if (info == null || info.isEmpty) {
+      AppLog.warn('未能从 ${r.fullName} 的 APK 读取名称/图标'
+          '${apkPath == null ? '（下载目录中没有可用的 APK）' : ''}');
+      return null;
     }
-    final cur = ref.read(configProvider).repos.firstWhere(
-          (e) => e.fullName == r.fullName,
-          orElse: () => r,
-        );
-    ref.read(configProvider.notifier).updateRepo(cur.copyWith(
-          apkLabel: (info.label?.isNotEmpty ?? false) ? info.label : null,
-          apkIconPath: (info.iconPath?.isNotEmpty ?? false)
-              ? info.iconPath
-              : null,
-        ));
+    _applyApkInfo(ref.read(configProvider), ref.read(configProvider.notifier),
+        r, info);
     AppLog.info('已获取 ${r.fullName} 的 APK 信息：${info.label ?? '(无名称)'}'
         '${info.iconPath == null ? '' : ' · 图标 ${info.iconPath}'}');
+    return info;
   } catch (e) {
     AppLog.warn('读取 APK 名称/图标失败：$e');
+    return null;
   }
+}
+
+/// 把提取到的名称/包名/版本/图标写入仓库配置
+/// [config] 为调用时的配置快照（StateNotifier.state 不能在外部访问）
+void _applyApkInfo(
+    AppConfig config, ConfigNotifier notifier, RepoConfig r, ApkAppInfo info) {
+  final cur = config.repos.firstWhere(
+    (e) => e.fullName == r.fullName,
+    orElse: () => r,
+  );
+  notifier.updateRepo(cur.copyWith(
+    apkLabel: (info.label?.isNotEmpty ?? false) ? info.label : null,
+    apkIconPath: (info.iconPath?.isNotEmpty ?? false) ? info.iconPath : null,
+    downloadedVersion:
+        (info.version?.isNotEmpty ?? false) ? info.version : null,
+    // 自动补全包名（用于读取设备上的已装版本）；用户已配置时不覆盖
+    packageName: ((r.packageName?.isEmpty ?? true) &&
+            (info.packageName?.isNotEmpty ?? false))
+        ? info.packageName
+        : null,
+  ));
 }
