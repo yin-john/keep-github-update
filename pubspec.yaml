@@ -1,7 +1,7 @@
 name: github_releases_keep_update
 description: 多端 GitHub Release 自动下载更新工具（Android/Windows/Linux，含 CLI/TUI）
 publish_to: 'none'
-version: 0.2.5+7
+version: 0.2.6+8
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
