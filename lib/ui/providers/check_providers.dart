@@ -82,13 +82,15 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
   /// 把设备上读到的真实已装版本同步进配置，并记录本次检测时间
   void _persistAfterCheck(RepoConfig r, UpdateCheck c, DateTime now) {
     final installed = c.installedVersion;
-    final merged = r.copyWith(
+    // 以最新配置为基，避免覆盖期间其它流程写入的字段（如图标/已下载版本）
+    final cur = ref.read(configProvider.notifier).freshRepo(r);
+    final merged = cur.copyWith(
       lastCheckedAt: formatTimestamp(now),
       lastInstalledTag:
           (installed != null && installed.isNotEmpty) ? installed : null,
     );
-    if (merged.lastCheckedAt == r.lastCheckedAt &&
-        merged.lastInstalledTag == r.lastInstalledTag) {
+    if (merged.lastCheckedAt == cur.lastCheckedAt &&
+        merged.lastInstalledTag == cur.lastInstalledTag) {
       return;
     }
     ref.read(configProvider.notifier).updateRepo(merged);
@@ -133,8 +135,10 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
       final id = await ref.read(updateServiceProvider).detectIdentity(r, tag);
       if (id == null) return;
       if (id.packageName == null && id.moduleId == null) return;
+      // 以最新配置为基，避免覆盖期间其它流程写入的字段（如图标/已下载版本）
       ref.read(configProvider.notifier).updateRepo(
-          r.copyWith(packageName: id.packageName, moduleId: id.moduleId));
+          ref.read(configProvider.notifier).freshRepo(r).copyWith(
+              packageName: id.packageName, moduleId: id.moduleId));
     } catch (_) {
       // 反查失败不影响检测
     }
