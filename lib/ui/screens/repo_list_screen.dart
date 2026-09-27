@@ -245,10 +245,8 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
     _snack('已清空 ${repos.length} 个仓库');
   }
 
-  /// 顶部操作栏：全选 / 反选 / 检测所选 / 更新所选 / 清空仓库
-  Widget _toolbar(List<RepoConfig> repos) {
-    final allSelected = repos.isNotEmpty && _selected.length == repos.length;
-    final hasSel = _selected.isNotEmpty;
+  /// 勾选若干仓库后出现的操作栏：检测所选 / 更新所选
+  Widget _selectionBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
       child: Wrap(
@@ -256,36 +254,65 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          OutlinedButton.icon(
-            onPressed: repos.isEmpty ? null : () => _toggleAll(repos),
-            icon:
-                Icon(allSelected ? Icons.remove_done : Icons.done_all, size: 18),
-            label: Text(allSelected ? '取消全选' : '全选'),
-          ),
-          OutlinedButton.icon(
-            onPressed: repos.isEmpty ? null : () => _invertSelection(repos),
-            icon: const Icon(Icons.swap_horiz, size: 18),
-            label: const Text('反选'),
-          ),
           FilledButton.tonalIcon(
-            onPressed: (_busy || !hasSel) ? null : _checkSelected,
+            onPressed: _busy ? null : _checkSelected,
             icon: const Icon(Icons.travel_explore, size: 18),
-            label: Text(hasSel ? '检测所选 (${_selected.length})' : '检测所选'),
+            label: Text('检测所选 (${_selected.length})'),
           ),
           FilledButton.icon(
-            onPressed: (_busy || !hasSel) ? null : _updateSelected,
+            onPressed: _busy ? null : _updateSelected,
             icon: const Icon(Icons.system_update_alt, size: 18),
-            label: Text(hasSel ? '更新所选 (${_selected.length})' : '更新所选'),
-          ),
-          TextButton.icon(
-            onPressed: (repos.isEmpty || _busy) ? null : _clearAllRepos,
-            icon: const Icon(Icons.delete_sweep, size: 18),
-            style:
-                TextButton.styleFrom(foregroundColor: const Color(0xFFF87171)),
-            label: const Text('清空仓库'),
+            label: Text('更新所选 (${_selected.length})'),
           ),
         ],
       ),
+    );
+  }
+
+  /// 右上角「⋮」菜单：全选 / 反选 / 清空仓库
+  Widget _overflowMenu(List<RepoConfig> repos) {
+    final allSelected = repos.isNotEmpty && _selected.length == repos.length;
+    return PopupMenuButton<String>(
+      tooltip: '更多操作',
+      onSelected: (v) {
+        if (v == 'all') {
+          _toggleAll(repos);
+        } else if (v == 'invert') {
+          _invertSelection(repos);
+        } else if (v == 'clear') {
+          _clearAllRepos();
+        }
+      },
+      itemBuilder: (ctx) => [
+        PopupMenuItem(
+          value: 'all',
+          enabled: repos.isNotEmpty,
+          child: Row(children: [
+            Icon(allSelected ? Icons.remove_done : Icons.done_all, size: 18),
+            const SizedBox(width: 8),
+            Text(allSelected ? '取消全选' : '全选'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'invert',
+          enabled: repos.isNotEmpty,
+          child: const Row(children: [
+            Icon(Icons.swap_horiz, size: 18),
+            SizedBox(width: 8),
+            Text('反选'),
+          ]),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'clear',
+          enabled: repos.isNotEmpty,
+          child: const Row(children: [
+            Icon(Icons.delete_sweep, size: 18, color: Color(0xFFF87171)),
+            SizedBox(width: 8),
+            Text('清空仓库', style: TextStyle(color: Color(0xFFF87171))),
+          ]),
+        ),
+      ],
     );
   }
 
@@ -506,6 +533,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
             onPressed:
                 _busy ? null : (_selected.isEmpty ? _scanAll : _checkSelected),
           ),
+          _overflowMenu(repos),
         ],
         bottom: _busy
             ? const PreferredSize(
@@ -525,8 +553,11 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       ),
       body: Column(
         children: [
-          _toolbar(repos),
-          const Divider(height: 1),
+          // 仅在勾选后显示「检测所选 / 更新所选」操作栏
+          if (_selected.isNotEmpty) ...[
+            _selectionBar(),
+            const Divider(height: 1),
+          ],
           Expanded(
             child: repos.isEmpty
                 ? const Center(
