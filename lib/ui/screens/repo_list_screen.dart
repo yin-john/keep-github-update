@@ -307,7 +307,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       var lastRc = 0;
       var lastAt = DateTime.now();
       var speed = 0.0;
-      final file = await svc.update(c, cancelToken: token, onProgress: (rc, t) {
+      await svc.update(c, cancelToken: token, onProgress: (rc, t) {
         final now = DateTime.now();
         final ms = now.difference(lastAt).inMilliseconds;
         if (ms >= 400 || (t > 0 && rc >= t)) {
