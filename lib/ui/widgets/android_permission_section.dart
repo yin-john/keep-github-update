@@ -153,8 +153,8 @@ class _AndroidPermissionSectionState
             contentPadding: EdgeInsets.zero,
             title: const Text('无视签名强制安装'),
             subtitle: const Text(
-                '签名与应用已装版本不一致时，先卸载原应用再安装（会丢失应用数据，请谨慎开启）。\n'
-                '对本应用自身的更新无效：不会卸载自己，会直接拒绝安装。',
+                '实验性功能，原则上不会丢数据\n'
+                '对本应用更新时本应用会自动退出，但不会影响更新',
                 style: TextStyle(fontSize: 12)),
             value: cfg.forceInstallIgnoreSignature,
             onChanged: (v) => ref
