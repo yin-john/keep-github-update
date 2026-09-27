@@ -185,6 +185,16 @@ class ConfigNotifier extends StateNotifier<AppConfig> {
     AppLog.info('更新仓库配置 ${r.fullName}');
   }
 
+  /// 取某仓库在当前配置中的最新版本（未找到时原样返回）。
+  ///
+  /// 调用方持有的 [r] 往往是较早的快照；若直接 `r.copyWith(...)` 后
+  /// [updateRepo] 会整体替换，抹掉期间其它流程写入的字段
+  /// （如图标/软件名/已下载版本/包名）。局部更新前应先取最新对象。
+  RepoConfig freshRepo(RepoConfig r) {
+    final i = state.repos.indexWhere((e) => e.fullName == r.fullName);
+    return i < 0 ? r : state.repos[i];
+  }
+
   Future<void> removeRepo(String fullName) async {
     final removed =
         state.repos.where((e) => e.fullName == fullName).toList();
