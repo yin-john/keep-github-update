@@ -223,6 +223,14 @@ class UpdateService {
       final pkg = guessPackageName(versions,
           installedTag: tag, exclude: repo.packageName);
       if (pkg != null) return UpdateIdentity(packageName: pkg);
+      // 反查失败时记录原因，便于排查（歧义 / 未安装 / 读取失败）
+      final hits = versions.entries
+          .where((e) =>
+              e.key != repo.packageName && versionMatches(e.value, tag))
+          .map((e) => e.key)
+          .toList();
+      AppLog.info('反查 ${repo.fullName}：读取到 ${versions.length} 个包，'
+          '与 tag=$tag 匹配的包 ${hits.isEmpty ? '不存在（可能未安装）' : '不止一个：${hits.join(', ')}（无法唯一确定）'}');
     }
     return null;
   }

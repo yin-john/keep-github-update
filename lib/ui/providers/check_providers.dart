@@ -158,15 +158,27 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
     if (newestApkInDir(dir) != null) {
       info = await _extractLocalApkInfo(r);
       fromDownload = true;
-    } else if (fresh.downloadedVersion == null &&
-        c.match != null &&
-        (fresh.packageName?.isNotEmpty ?? false)) {
-      final installed =
-          await ref.read(updateServiceProvider).resolveInstalledVersion(fresh);
-      if (installed != null &&
-          installed.isNotEmpty &&
-          versionMatches(installed, c.release.tagName)) {
-        info = await _extractInstalledAppInfo(fresh);
+      if (info == null || info.isEmpty) {
+        AppLog.warn('补全 ${r.fullName}：从本地 APK 提取名称/图标失败');
+      }
+    } else if (fresh.downloadedVersion == null && c.match != null) {
+      if (fresh.packageName?.isEmpty ?? true) {
+        AppLog.info('补全 ${r.fullName}：未下载过 APK 且未识别包名，'
+            '无法从已安装应用提取（可在仓库编辑页手动填写包名）');
+      } else {
+        final installed = await ref
+            .read(updateServiceProvider)
+            .resolveInstalledVersion(fresh);
+        AppLog.info('补全 ${r.fullName}：已装版本 ${installed ?? '未知'}，'
+            '仓库最新 ${c.release.tagName}');
+        if (installed != null &&
+            installed.isNotEmpty &&
+            versionMatches(installed, c.release.tagName)) {
+          info = await _extractInstalledAppInfo(fresh);
+          if (info == null || info.isEmpty) {
+            AppLog.warn('补全 ${r.fullName}：从已安装应用提取失败');
+          }
+        }
       }
     }
     if (info != null && info.isNotEmpty) {
@@ -191,8 +203,10 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
       ref.read(configProvider.notifier).updateRepo(
           ref.read(configProvider.notifier).freshRepo(r).copyWith(
               packageName: id.packageName, moduleId: id.moduleId));
-    } catch (_) {
-      // 反查失败不影响检测
+      AppLog.info('反查 ${r.fullName} 成功：'
+          'packageName=${id.packageName ?? '-'} moduleId=${id.moduleId ?? '-'}');
+    } catch (e) {
+      AppLog.warn('反查 ${r.fullName} 包名/模块 ID 失败：$e');
     }
   }
 
