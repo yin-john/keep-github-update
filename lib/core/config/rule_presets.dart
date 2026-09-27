@@ -25,8 +25,10 @@ const Map<PlatformType, List<RulePreset>> systemRulePresets = {
       rule: AssetRule(
         platform: PlatformType.windows,
         strategy: UpdateStrategy.portable,
-        nameRegex:
-            r'(?i).*\.(zip|7z|tar(\.(gz|bz2|xz|zst))?|tgz|tbz2|gz|bz2|xz)$',
+        // Dart RegExp 不支持 (?i) 内联标志，用字符类兼容大小写
+        nameRegex: r'.*\.([Zz][Ii][Pp]|7[Zz]|[Tt][Aa][Rr]'
+            r'(\.([Gg][Zz]|[Bb][Zz]2|[Xx][Zz]|[Zz][Ss][Tt]))?'
+            r'|[Tt][Gg][Zz]|[Gg][Zz]|[Bb][Zz]2|[Xx][Zz])$',
       ),
     ),
     RulePreset(
@@ -57,8 +59,9 @@ const Map<PlatformType, List<RulePreset>> systemRulePresets = {
       rule: AssetRule(
         platform: PlatformType.linux,
         strategy: UpdateStrategy.portable,
-        nameRegex:
-            r'(?i).*\.(zip|7z|tar(\.(gz|bz2|xz|zst))?|tgz|tbz2|gz|bz2|xz)$',
+        nameRegex: r'.*\.([Zz][Ii][Pp]|7[Zz]|[Tt][Aa][Rr]'
+            r'(\.([Gg][Zz]|[Bb][Zz]2|[Xx][Zz]|[Zz][Ss][Tt]))?'
+            r'|[Tt][Gg][Zz]|[Gg][Zz]|[Bb][Zz]2|[Xx][Zz])$',
       ),
     ),
     RulePreset(
