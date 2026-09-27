@@ -9,6 +9,7 @@ import '../../core/download/download_manager.dart';
 import '../../core/updater/update_service.dart';
 import '../providers/app_providers.dart';
 import '../providers/check_providers.dart';
+import '../widgets/module_terminal.dart';
 import '../widgets/repo_card.dart';
 import 'repo_edit_screen.dart';
 
@@ -284,6 +285,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
     final downloads = ref.read(downloadsProvider.notifier);
     final token = downloads.start(r.fullName);
     _cancel[r.fullName] = token;
+    ModuleTerminalHandle? terminal; // 模块刷入的终端窗口（finally 中关闭）
     try {
       final svc = ref.read(updateServiceProvider);
       final c = await svc.check(r);
@@ -321,9 +323,16 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
               progress: ratio, speed: speed, status: '下载中');
         }
       },
-          // 下载完成（安装前）即提取 APK 名称/图标/包名/版本（落盘到下载目录）
-          onDownloaded: (file) =>
-              fetchApkInfoForRepo(ref, r, apkPath: file.path));
+          // 下载完成（安装前）：模块刷入先打开终端窗口（安装脚本可能需要
+          // 音量键等交互）；APK 则提取名称/图标/包名/版本（落盘到下载目录）
+          onDownloaded: (file) async {
+        if (c.match?.rule.strategy == UpdateStrategy.module &&
+            mounted &&
+            terminal == null) {
+          terminal = openModuleTerminal(context);
+        }
+        await fetchApkInfoForRepo(ref, r, apkPath: file.path);
+      });
       // 以最新配置为基（onDownloaded 已写入 APK 信息），仅更新已安装版本
       ref
           .read(configProvider.notifier)
@@ -347,6 +356,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       downloads.finish(r.fullName, '失败: $e');
     } finally {
       _cancel.remove(r.fullName);
+      await terminal?.close(); // 关闭模块终端窗口
     }
   }
 
@@ -356,6 +366,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
     final downloads = ref.read(downloadsProvider.notifier);
     final token = downloads.start(r.fullName);
     _cancel[r.fullName] = token;
+    ModuleTerminalHandle? terminal;
     try {
       final svc = ref.read(updateServiceProvider);
       final c = _stateOf(r.fullName).check ?? await svc.check(r);
@@ -365,6 +376,9 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
         _setStatus(r.fullName, '未找到已下载的文件，请点「更新」重新下载');
         downloads.finish(r.fullName, '无已下载文件');
         return;
+      }
+      if (c.match?.rule.strategy == UpdateStrategy.module && mounted) {
+        terminal = openModuleTerminal(context);
       }
       await svc.applyDownloaded(c, file);
       // 以最新配置为基，仅更新已安装版本（避免覆盖 APK 信息等字段）
@@ -385,6 +399,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       downloads.finish(r.fullName, '重试失败');
     } finally {
       _cancel.remove(r.fullName);
+      await terminal?.close(); // 关闭模块终端窗口
       if (mounted) setState(() => _busy = false);
     }
   }

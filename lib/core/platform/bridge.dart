@@ -2,12 +2,15 @@
 /// 采用 dart:io Process，GUI 与 CLI/TUI 共用同一套实现，无需 MethodChannel。
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 import '../config/app_paths.dart';
 import '../config/models.dart';
+import '../log/app_log.dart';
 import '../version/installed_version.dart';
+import 'module_console.dart';
 
 /// 判断下载文件是否为需解压的压缩包（单文件便携版如 .exe / .AppImage 返回 false）
 bool isArchiveFile(String path) {
@@ -61,7 +64,8 @@ abstract class PlatformBridge {
   /// 当前设备的目标架构（仅 Android 有实际意义，其余返回 any）
   Future<TargetArch> deviceArch();
 
-  /// Android：root 刷入 Magisk/KernelSU 模块
+  /// Android：root 刷入 Magisk/KernelSU 模块。
+  /// 安装器输出实时推送到 [ModuleInstallConsole]（终端窗口）并写入日志。
   Future<void> flashModule(String path);
 
   /// Android：读取设备上已装 Magisk/KernelSU 模块的 module.prop（模块 ID → 内容）
@@ -293,15 +297,59 @@ class DefaultPlatformBridge implements PlatformBridge {
 
   @override
   Future<void> flashModule(String path) async {
-    const candidates = [
-      'ksud module install',
-      'magisk --install-module',
-    ];
-    for (final c in candidates) {
-      final r = await Process.run('su', ['-c', '$c "${_quote(path)}"']);
-      if (r.exitCode == 0) return;
+    if (!Platform.isAndroid) {
+      throw Exception('仅 Android 支持刷入 Magisk/KernelSU 模块');
     }
-    throw Exception('模块刷入失败（请确认已安装 Magisk 或 KernelSU 且已 root）');
+    // _quote 已做单引号转义，注意不要再包一层引号（否则路径带字面引号必失败）
+    final target = _quote(path);
+    // su 环境的 PATH 未必包含各家管理器的二进制目录，统一追加
+    const pathFix =
+        r'export PATH="$PATH:/data/adb/ksu/bin:/data/adb/magisk:/data/adb/ap";';
+    const cmds = [
+      'ksud module install', // KernelSU
+      'magisk --install-module', // Magisk
+      'apd module install', // APatch
+      '/data/adb/ksu/bin/ksud module install', // KernelSU（绝对路径兜底）
+      '/data/adb/magisk/magisk --install-module', // Magisk（绝对路径兜底）
+    ];
+
+    void emit(String line) {
+      AppLog.info('[模块] $line');
+      ModuleInstallConsole.emit(line);
+    }
+
+    emit('开始刷入模块：$path');
+    final failures = <String>[];
+    for (final c in cmds) {
+      final full = '$pathFix $c $target';
+      emit('\$ su -c "$c <模块包>"');
+      try {
+        final proc = await Process.start('su', ['-c', full]);
+        final out = proc.stdout
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .forEach(emit);
+        final err = proc.stderr
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .forEach(emit);
+        final code = await proc.exitCode;
+        await out;
+        await err;
+        if (code == 0) {
+          emit('✔ 模块刷入成功（$c）');
+          return;
+        }
+        failures.add('$c → 退出码 $code');
+        emit('✘ 失败（$c，退出码 $code）');
+      } catch (e) {
+        failures.add('$c → $e');
+        emit('✘ 失败（$c）：$e');
+      }
+    }
+    throw Exception('模块刷入失败：未找到可用的管理器或刷入出错。\n'
+        '请确认已安装 Magisk / KernelSU / APatch 之一，且已授予本应用 root 权限。\n'
+        '尝试记录：\n- ${failures.join('\n- ')}');
   }
 
   @override
