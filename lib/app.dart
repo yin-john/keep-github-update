@@ -1,7 +1,13 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/config/app_paths.dart';
+import 'core/config/models.dart';
+import 'core/scheduler/check_schedule.dart';
 import 'ui/providers/app_providers.dart';
+import 'ui/providers/check_providers.dart';
 import 'ui/screens/downloads_screen.dart';
 import 'ui/screens/repo_list_screen.dart';
 import 'ui/screens/settings_screen.dart';
@@ -64,7 +70,8 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends ConsumerState<AppShell> {
+class _AppShellState extends ConsumerState<AppShell>
+    with WidgetsBindingObserver {
   int _index = 0;
   final _pages = const [
     RepoListScreen(),
@@ -75,8 +82,94 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _checkStartupPermissions());
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkStartupPermissions();
+      _bootstrapBackground();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// 桌面端：开启后台保活后，关闭窗口不退出应用（继续按间隔检测）
+  @override
+  Future<ui.AppExitResponse> didRequestAppExit() async {
+    if (!Platform.isWindows && !Platform.isLinux) {
+      return ui.AppExitResponse.exit;
+    }
+    if (!ref.read(configProvider).backgroundKeepAlive) {
+      return ui.AppExitResponse.exit;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('后台保活已开启：应用将继续按设定的间隔检测更新。'
+            '如需退出，请先在「设置」关闭后台保活。'),
+        duration: Duration(seconds: 4),
+      ));
+    }
+    return ui.AppExitResponse.cancel;
+  }
+
+  /// 启动时按配置启用后台保活与自动检测
+  void _bootstrapBackground() {
+    final cfg = ref.read(configProvider);
+    _syncScheduler(cfg.checkIntervalMinutes);
+    _applyKeepAlive(cfg.backgroundKeepAlive);
+  }
+
+  /// 按全局间隔启停自动检测调度
+  void _syncScheduler(int intervalMinutes) {
+    final scheduler = ref.read(schedulerProvider);
+    if (autoCheckEnabled(intervalMinutes)) {
+      scheduler.start();
+    } else {
+      scheduler.stop();
+    }
+  }
+
+  /// 常驻通知栏 + 后台保活
+  ///
+  /// - Android：原生前台服务（常驻通知，进程保活）
+  /// - Windows / Linux：无系统级常驻通知，改为「关闭窗口不退出」的保活，
+  ///   并在每次后台检测有结果时由系统通知提示
+  Future<void> _applyKeepAlive(bool enabled) async {
+    if (!mounted) return;
+    final env = ref.read(androidEnvProvider);
+    try {
+      if (env.isAndroid) {
+        if (enabled) {
+          final ok = await env.startBackgroundService(
+            title: 'GRKU 后台运行中',
+            text: '正在按设定的间隔检测更新',
+          );
+          if (!ok && mounted) {
+            _snack('常驻通知启动失败：请确认已允许通知权限');
+          }
+        } else {
+          await env.stopBackgroundService();
+        }
+        return;
+      }
+      if (enabled) {
+        _snack('后台保活已开启：关闭窗口时应用不会退出（当前平台无常驻通知栏）');
+      }
+    } catch (e) {
+      // 后台能力不可用时不影响前台使用
+    }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    // 可能由 provider 变化触发（构建期间），推迟到帧末提示
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
+    });
   }
 
   /// 开屏检查：Android 默认下载目录在公共存储，需要「所有文件访问」权限；
@@ -123,6 +216,15 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // 配置变化时同步后台能力（仅关注相关字段，避免频繁重启）
+    ref.listen<AppConfig>(configProvider, (prev, next) {
+      if (prev?.checkIntervalMinutes != next.checkIntervalMinutes) {
+        _syncScheduler(next.checkIntervalMinutes);
+      }
+      if (prev?.backgroundKeepAlive != next.backgroundKeepAlive) {
+        _applyKeepAlive(next.backgroundKeepAlive);
+      }
+    });
     final isWide = MediaQuery.of(context).size.width >= 720;
     return Scaffold(
       body: isWide

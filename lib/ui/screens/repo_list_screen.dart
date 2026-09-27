@@ -8,6 +8,7 @@ import '../../core/config/models.dart';
 import '../../core/download/download_manager.dart';
 import '../../core/updater/update_service.dart';
 import '../providers/app_providers.dart';
+import '../providers/check_providers.dart';
 import '../widgets/repo_card.dart';
 import 'repo_edit_screen.dart';
 
@@ -19,14 +20,25 @@ class RepoListScreen extends ConsumerStatefulWidget {
 }
 
 class _RepoListScreenState extends ConsumerState<RepoListScreen> {
-  final Map<String, String> _status = {};
-  final Map<String, bool?> _hasUpdate = {};
-  final Map<String, String> _latest = {};
   final Map<String, CancelToken> _cancel = {};
   final Set<String> _selected = {}; // 批量更新勾选
-  final Map<String, UpdateCheck> _checks = {}; // 最近检测结果（重试安装复用）
-  final Set<String> _installRetry = {}; // 已下载但安装失败、可重试的仓库
-  bool _busy = false;
+  bool _busy = false; // 更新（下载/安装）进行中
+
+  /// 检测状态统一由 [checkProvider] 管理：手动检测与后台自动检测共用同一份状态
+  CheckNotifier get _checker => ref.read(checkProvider.notifier);
+
+  RepoCheckState _stateOf(String key) =>
+      ref.read(checkProvider)[key] ?? const RepoCheckState();
+
+  bool get _anyChecking => ref.read(checkProvider).values.any((s) => s.checking);
+
+  /// 是否正在忙（更新中或检测中）
+  bool get _isBusy => _busy || _anyChecking;
+
+  void _setStatus(String key, String status,
+          {bool? hasUpdate, bool? canRetryInstall}) =>
+      _checker.setStatus(key, status,
+          hasUpdate: hasUpdate, canRetryInstall: canRetryInstall);
 
   /// Windows/Linux 下提供「打开文件夹」
   bool get _canOpenFolder => Platform.isWindows || Platform.isLinux;
@@ -86,83 +98,11 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
     );
   }
 
-  /// 把设备上读到的真实已装版本同步进配置（供列表/CLI 显示）
-  void _syncInstalled(RepoConfig r, UpdateCheck c) {
-    final v = c.installedVersion;
-    if (v == null || v.isEmpty || v == r.lastInstalledTag) return;
-    ref
-        .read(configProvider.notifier)
-        .updateRepo(r.copyWith(lastInstalledTag: v));
-  }
-
-  /// 依据设备上读到的版本反查并补全包名 / 模块 ID
-  Future<void> _learnIdentity(RepoConfig r, UpdateCheck c) async {
-    final hasPkg = r.packageName != null && r.packageName!.isNotEmpty;
-    final hasModule = r.moduleId != null && r.moduleId!.isNotEmpty;
-    if (hasPkg || hasModule) return;
-    final tag = c.installedVersion ?? r.lastInstalledTag;
-    if (tag == null || tag.isEmpty) return;
-    try {
-      final id = await ref.read(updateServiceProvider).detectIdentity(r, tag);
-      if (id == null) return;
-      if (id.packageName == null && id.moduleId == null) return;
-      ref.read(configProvider.notifier).updateRepo(
-          r.copyWith(packageName: id.packageName, moduleId: id.moduleId));
-    } catch (_) {
-      // 反查失败不影响检测
-    }
-  }
-
-  Future<void> _check(RepoConfig r) async {
-    setState(() => _busy = true);
-    try {
-      final svc = ref.read(updateServiceProvider);
-      final c = await svc.check(r);
-      _checks[r.fullName] = c;
-      setState(() {
-        _latest[r.fullName] = c.release.tagName;
-        _hasUpdate[r.fullName] = c.match == null ? null : c.hasUpdate;
-        _status[r.fullName] = describeCheck(c);
-      });
-      _syncInstalled(r, c);
-      await _learnIdentity(r, c);
-      if (c.hasUpdate) {
-        await ref.read(systemNotifierProvider).show(
-            '${r.fullName} 有可用更新',
-            '检测到适用于当前平台的新版本',
-            NotificationLevel.info);
-      }
-    } catch (e) {
-      setState(() => _status[r.fullName] = '检测失败: $e');
-    } finally {
-      setState(() => _busy = false);
-    }
-  }
+  Future<void> _check(RepoConfig r) => _checker.checkOne(r);
 
   /// 批量检测指定仓库（「检测全部」与「检测所选」共用）
-  Future<void> _checkMany(List<RepoConfig> targets) async {
-    if (targets.isEmpty) return;
-    setState(() => _busy = true);
-    try {
-      final svc = ref.read(updateServiceProvider);
-      for (final r in targets) {
-        try {
-          final c = await svc.check(r);
-          setState(() {
-            _latest[r.fullName] = c.release.tagName;
-            _hasUpdate[r.fullName] = c.match == null ? null : c.hasUpdate;
-            _status[r.fullName] = describeCheck(c);
-          });
-          _syncInstalled(r, c);
-          await _learnIdentity(r, c);
-        } catch (e) {
-          setState(() => _status[r.fullName] = '检测失败: $e');
-        }
-      }
-    } finally {
-      setState(() => _busy = false);
-    }
-  }
+  Future<void> _checkMany(List<RepoConfig> targets) =>
+      targets.isEmpty ? Future.value() : _checker.checkMany(targets);
 
   List<RepoConfig> _selectedRepos() => ref
       .read(configProvider)
@@ -255,12 +195,12 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           FilledButton.tonalIcon(
-            onPressed: _busy ? null : _checkSelected,
+            onPressed: _isBusy ? null : _checkSelected,
             icon: const Icon(Icons.travel_explore, size: 18),
             label: Text('检测所选 (${_selected.length})'),
           ),
           FilledButton.icon(
-            onPressed: _busy ? null : _updateSelected,
+            onPressed: _isBusy ? null : _updateSelected,
             icon: const Icon(Icons.system_update_alt, size: 18),
             label: Text('更新所选 (${_selected.length})'),
           ),
@@ -347,13 +287,9 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
     try {
       final svc = ref.read(updateServiceProvider);
       final c = await svc.check(r);
-      _checks[r.fullName] = c;
-      setState(() {
-        _latest[r.fullName] = c.release.tagName;
-        _hasUpdate[r.fullName] = c.match == null ? null : c.hasUpdate;
-      });
+      _checker.setResult(r.fullName, c);
       if (c.match == null) {
-        setState(() => _status[r.fullName] = describeCheck(c));
+        _setStatus(r.fullName, describeCheck(c));
         downloads.finish(r.fullName, '未找到匹配的资产');
         if (mounted) {
           await _showNoMatchDialog(r, c.release.tagName,
@@ -363,7 +299,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       }
       if (!c.hasUpdate) {
         final s = describeCheck(c);
-        setState(() => _status[r.fullName] = s);
+        _setStatus(r.fullName, s);
         downloads.finish(r.fullName, s);
         return;
       }
@@ -371,7 +307,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       var lastRc = 0;
       var lastAt = DateTime.now();
       var speed = 0.0;
-      await svc.update(c, cancelToken: token, onProgress: (rc, t) {
+      final file = await svc.update(c, cancelToken: token, onProgress: (rc, t) {
         final now = DateTime.now();
         final ms = now.difference(lastAt).inMilliseconds;
         if (ms >= 400 || (t > 0 && rc >= t)) {
@@ -380,8 +316,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
           lastAt = now;
           final pct = t > 0 ? (rc / t * 100).toStringAsFixed(0) : '?';
           final ratio = t > 0 ? rc / t : null;
-          setState(() =>
-              _status[r.fullName] = '下载 $pct% · ${_fmtSpeed(speed)}');
+          _setStatus(r.fullName, '下载 $pct% · ${_fmtSpeed(speed)}');
           downloads.progress(r.fullName,
               progress: ratio, speed: speed, status: '下载中');
         }
@@ -389,26 +324,23 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       ref
           .read(configProvider.notifier)
           .updateRepo(r.copyWith(lastInstalledTag: c.release.tagName));
+      // Android：按需从下载到的 APK 读取图标与软件名称
+      await fetchApkInfoForRepo(ref, r, file.path);
       // 更新后设备上的版本即 tag，据此反查补全包名/模块 ID
-      await _learnIdentity(r, c);
-      setState(() {
-        _installRetry.remove(r.fullName);
-        _status[r.fullName] = '完成 → ${c.release.tagName}';
-        _hasUpdate[r.fullName] = false;
-      });
+      await _checker.learnIdentityFor(r, c.release.tagName);
+      _setStatus(r.fullName, '完成 → ${c.release.tagName}',
+          hasUpdate: false, canRetryInstall: false);
       downloads.finish(r.fullName, '完成 → ${c.release.tagName}');
     } on InstallFailedException catch (e) {
       // 已下载完成，仅安装失败 → 提供「重试安装」
-      setState(() {
-        _installRetry.add(r.fullName);
-        _status[r.fullName] = '安装失败（已下载，可重试安装）：${e.message}';
-      });
+      _setStatus(r.fullName, '安装失败（已下载，可重试安装）：${e.message}',
+          canRetryInstall: true);
       downloads.finish(r.fullName, '安装失败，可重试');
     } on DownloadCancelled {
-      setState(() => _status[r.fullName] = '已暂停（可再点更新继续）');
+      _setStatus(r.fullName, '已暂停（可再点更新继续）');
       downloads.finish(r.fullName, '已暂停');
     } catch (e) {
-      setState(() => _status[r.fullName] = '失败: $e');
+      _setStatus(r.fullName, '失败: $e');
       downloads.finish(r.fullName, '失败: $e');
     } finally {
       _cancel.remove(r.fullName);
@@ -423,11 +355,11 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
     _cancel[r.fullName] = token;
     try {
       final svc = ref.read(updateServiceProvider);
-      final c = _checks[r.fullName] ?? await svc.check(r);
+      final c = _stateOf(r.fullName).check ?? await svc.check(r);
       final file = await svc.lastDownloadedFile(r,
           downloadDir: ref.read(configProvider).downloadDir);
       if (file == null) {
-        setState(() => _status[r.fullName] = '未找到已下载的文件，请点「更新」重新下载');
+        _setStatus(r.fullName, '未找到已下载的文件，请点「更新」重新下载');
         downloads.finish(r.fullName, '无已下载文件');
         return;
       }
@@ -435,17 +367,16 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       ref
           .read(configProvider.notifier)
           .updateRepo(r.copyWith(lastInstalledTag: c.release.tagName));
-      setState(() {
-        _installRetry.remove(r.fullName);
-        _hasUpdate[r.fullName] = false;
-        _status[r.fullName] = '重试安装成功 → ${c.release.tagName}';
-      });
+      await fetchApkInfoForRepo(ref, r, file.path);
+      _setStatus(r.fullName, '重试安装成功 → ${c.release.tagName}',
+          hasUpdate: false, canRetryInstall: false);
       downloads.finish(r.fullName, '重试安装成功');
     } on InstallFailedException catch (e) {
-      setState(() => _status[r.fullName] = '安装仍失败（可再重试）：${e.message}');
+      _setStatus(r.fullName, '安装仍失败（可再重试）：${e.message}',
+          canRetryInstall: true);
       downloads.finish(r.fullName, '安装失败');
     } catch (e) {
-      setState(() => _status[r.fullName] = '重试失败: $e');
+      _setStatus(r.fullName, '重试失败: $e');
       downloads.finish(r.fullName, '重试失败');
     } finally {
       _cancel.remove(r.fullName);
@@ -522,6 +453,8 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
   @override
   Widget build(BuildContext context) {
     final repos = ref.watch(configProvider).repos;
+    final checks = ref.watch(checkProvider);
+    final busy = _busy || checks.values.any((c) => c.checking);
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -531,11 +464,11 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
             icon: const Icon(Icons.travel_explore),
             tooltip: _selected.isEmpty ? '检测全部' : '检测所选',
             onPressed:
-                _busy ? null : (_selected.isEmpty ? _scanAll : _checkSelected),
+                busy ? null : (_selected.isEmpty ? _scanAll : _checkSelected),
           ),
           _overflowMenu(repos),
         ],
-        bottom: _busy
+        bottom: busy
             ? const PreferredSize(
                 preferredSize: Size.fromHeight(3),
                 child: LinearProgressIndicator(minHeight: 3),
@@ -567,11 +500,12 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
               itemCount: repos.length,
               itemBuilder: (_, i) {
                 final r = repos[i];
+                final st = checks[r.fullName] ?? const RepoCheckState();
                 return RepoCard(
                   repo: r,
-                  status: _status[r.fullName],
-                  hasUpdate: _hasUpdate[r.fullName],
-                  latestTag: _latest[r.fullName],
+                  status: st.status,
+                  hasUpdate: st.hasUpdate,
+                  latestTag: st.latest,
                   folderPath: _canOpenFolder ? _folderFor(r) : null,
                   selected: _selected.contains(r.fullName),
                   onSelected: (v) => setState(() {
@@ -594,7 +528,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
                           .cancel(r.fullName)
                       : null,
                   onClearDownloads: () => _clearDownloads(r),
-                  onRetryInstall: _installRetry.contains(r.fullName)
+                  onRetryInstall: st.canRetryInstall
                       ? () => _retryInstall(r)
                       : null,
                   onDelete: () async {

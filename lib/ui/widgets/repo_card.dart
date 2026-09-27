@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/config/models.dart';
+import '../../core/config/repo_display.dart';
+import 'repo_avatar.dart';
 
 class RepoCard extends StatelessWidget { // 非空则显示「重试安装」（已下载但安装失败）
 
@@ -45,6 +47,12 @@ class RepoCard extends StatelessWidget { // 非空则显示「重试安装」（
 
   @override
   Widget build(BuildContext context) {
+    // 有自定义名称 / 自动获取到的软件名称时，第二行以次一级字体显示「作者/仓库名」
+    final title = resolveRepoTitle(
+      fullName: repo.fullName,
+      displayName: repo.displayName,
+      apkLabel: repo.apkLabel,
+    );
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Padding(
@@ -60,10 +68,29 @@ class RepoCard extends StatelessWidget { // 非空则显示「重试安装」（
                     onChanged: onSelected,
                     visualDensity: VisualDensity.compact,
                   ),
+                RepoAvatar(
+                  name: title.primary,
+                  iconPath: repo.apkIconPath,
+                  size: 38,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text(repo.fullName,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(title.primary,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
+                      if (title.hasSecondary)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(title.secondary!,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Color(0xFF94A3B8))),
+                        ),
+                    ],
+                  ),
                 ),
                 if (onClearDownloads != null)
                   IconButton(

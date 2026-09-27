@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -12,6 +14,8 @@ import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
+import java.io.FileOutputStream
 import java.security.MessageDigest
 
 /**
@@ -39,6 +43,23 @@ class MainActivity : FlutterActivity() {
                     "installedVersion" -> result.success(installedVersion(call.argument<String>("package")))
                     // 自身包名（applicationId）：用于识别「自己更新自己」，避免误卸载自身
                     "selfPackageName" -> result.success(packageName)
+                    // 读取 APK 的软件名称与图标（图标导出为 PNG）
+                    "apkAppInfo" -> result.success(apkAppInfo(call.argument<String>("path")))
+                    // 常驻通知栏 + 后台保活（前台服务）
+                    "startBackgroundService" -> result.success(
+                        startBackgroundService(
+                            call.argument<String>("title"),
+                            call.argument<String>("text")
+                        )
+                    )
+                    "updateBackgroundNotification" -> result.success(
+                        updateBackgroundNotification(
+                            call.argument<String>("title") ?: "GRKU 后台运行中",
+                            call.argument<String>("text") ?: ""
+                        )
+                    )
+                    "stopBackgroundService" -> result.success(stopBackgroundService())
+                    "isBackgroundServiceRunning" -> result.success(BackgroundService.isRunning())
                     "installWithSystem" -> result.success(installWithSystem(call.argument<String>("path")))
                     "filesDir" -> result.success(filesDir.absolutePath)
                     "externalFilesDir" -> result.success(getExternalFilesDir(null)?.absolutePath)
@@ -218,6 +239,81 @@ class MainActivity : FlutterActivity() {
             packageManager.getPackageInfo(pkg, 0).versionName
         } catch (e: Exception) {
             null
+        }
+    }
+
+    // —— APK 的软件名称与图标 ——
+
+    /** 读取 APK 的软件名称（应用标签）与图标；图标导出为 PNG，返回其路径 */
+    private fun apkAppInfo(path: String?): Map<String, Any?>? {
+        if (path == null) return null
+        return try {
+            val info = packageManager.getPackageArchiveInfo(path, 0) ?: return null
+            val appInfo = info.applicationInfo ?: return null
+            // 未安装的 APK 需要显式指定路径，loadLabel / loadIcon 才能读到资源
+            appInfo.sourceDir = path
+            appInfo.publicSourceDir = path
+            val label = try {
+                appInfo.loadLabel(packageManager).toString()
+            } catch (e: Exception) {
+                info.packageName
+            }
+            mapOf(
+                "label" to label,
+                "iconPath" to saveApkIcon(appInfo, info.packageName)
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** 把 APK 图标绘制为 144×144 的 PNG，存到应用私有目录 */
+    private fun saveApkIcon(appInfo: android.content.pm.ApplicationInfo, pkg: String): String? {
+        return try {
+            val drawable = appInfo.loadIcon(packageManager)
+            val size = 144
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            val dir = File(filesDir, "grku_icons").apply { mkdirs() }
+            val out = File(dir, "$pkg.png")
+            FileOutputStream(out).use { stream ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            }
+            bitmap.recycle()
+            out.absolutePath
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // —— 常驻通知栏 + 后台保活 ——
+
+    private fun startBackgroundService(title: String?, text: String?): Boolean {
+        return try {
+            BackgroundService.start(this, title, text)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun updateBackgroundNotification(title: String, text: String): Boolean {
+        return try {
+            BackgroundService.update(this, title, text)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun stopBackgroundService(): Boolean {
+        return try {
+            BackgroundService.stop(this)
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 }

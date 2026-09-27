@@ -36,7 +36,7 @@ void main() {
     await ConfigRepository(path).save(_cfg(repos: const [_androidRepo]));
 
     final text = File(path).readAsStringSync();
-    expect(text, contains('configVersion: 1'));
+    expect(text, contains('configVersion: $currentConfigVersion'));
     // YAML 写出时字符串会带引号，这里只校验字段名与取值
     expect(text, contains('packageName'));
     expect(text, contains('com.example.app'));

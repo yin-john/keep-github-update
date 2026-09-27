@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../../core/config/models.dart';
 import '../../core/github/repo_ref.dart';
 import '../../core/platform/platform_utils.dart';
+import '../../core/scheduler/check_schedule.dart';
 import '../providers/app_providers.dart';
 import '../widgets/rule_editor.dart';
 import '../widgets/rules_library.dart';
@@ -43,12 +44,15 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
   late final TextEditingController _docker;
   late final TextEditingController _packageName;
   late final TextEditingController _moduleId;
+  late final TextEditingController _displayName;
   late List<_RuleDraft> _drafts;
   int _nextRuleId = 0;
   int? _selectedRuleId; // 当前选中的规则框（规则库将覆盖它）
   InstallMethod? _apkMethod;
   String? _urlError;
   bool _installEdited = false; // 用户是否手动改过安装目录（改过则不再自动填充）
+  bool _fetchApkInfo = false; // Android：下载 APK 后自动获取图标与软件名称
+  int? _intervalOverride; // 该仓库的检测间隔（null = 跟随全局）
 
   @override
   void initState() {
@@ -64,6 +68,9 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
     _docker = TextEditingController(text: r?.dockerRunArgs ?? '');
     _packageName = TextEditingController(text: r?.packageName ?? '');
     _moduleId = TextEditingController(text: r?.moduleId ?? '');
+    _displayName = TextEditingController(text: r?.displayName ?? '');
+    _fetchApkInfo = r?.fetchApkInfo ?? false;
+    _intervalOverride = r?.checkIntervalMinutes;
     _apkMethod = r?.apkInstallMethod;
     _installEdited = r != null; // 编辑既有仓库时不自动改写安装目录
     final initialRules = r?.assetRules ??
@@ -185,6 +192,15 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
               _moduleId.text.trim().isNotEmpty
           ? _moduleId.text.trim()
           : null,
+      displayName:
+          _displayName.text.trim().isEmpty ? null : _displayName.text.trim(),
+      fetchApkInfo:
+          rules.any((x) => x.strategy == UpdateStrategy.apk) && _fetchApkInfo,
+      // 保留自动获取到的信息与检测时间，避免编辑后丢失
+      apkLabel: widget.repo?.apkLabel,
+      apkIconPath: widget.repo?.apkIconPath,
+      lastCheckedAt: widget.repo?.lastCheckedAt,
+      checkIntervalMinutes: _intervalOverride,
     );
     final notifier = ref.read(configProvider.notifier);
     if (widget.repo != null) {
@@ -267,6 +283,15 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
             ],
           ),
           TextField(
+            controller: _displayName,
+            decoration: const InputDecoration(
+              labelText: '显示名称（可选）',
+              hintText: '例: VSCode、我的工具',
+              helperText: '填写后列表中显示该名称，「作者/仓库名」以次一级字体显示在下一行',
+              helperMaxLines: 2,
+            ),
+          ),
+          TextField(
             controller: _tag,
             decoration: const InputDecoration(
               labelText: 'Tag 过滤（可选）',
@@ -274,6 +299,31 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
               helperText: '仅匹配包含该字符串的 tag；留空表示不过滤',
             ),
           ),
+          // —— 自动检测间隔（仓库级覆盖）——
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text('自动检测间隔（该仓库）',
+                      style: TextStyle(fontSize: 14)),
+                ),
+                DropdownButton<int?>(
+                  value: _intervalOverride,
+                  onChanged: (v) => setState(() => _intervalOverride = v),
+                  items: [
+                    const DropdownMenuItem<int?>(
+                        value: null, child: Text('跟随全局设置')),
+                    for (final m in intervalPresets)
+                      DropdownMenuItem<int?>(
+                          value: m, child: Text(describeInterval(m))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Text('留空表示使用「设置 → 更新检测」里的全局间隔；选「关闭」则该仓库不自动检测',
+              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
           if (showInstallDir)
             TextField(
                 controller: _install,
@@ -338,6 +388,17 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
                 helperText: '用于读取设备上模块 module.prop 的版本；留空则按 updateJson/名称自动匹配',
                 helperMaxLines: 2,
               ),
+            ),
+          if (showPackageName)
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              value: _fetchApkInfo,
+              onChanged: (v) => setState(() => _fetchApkInfo = v),
+              title: const Text('下载 APK 后自动获取图标与软件名称'),
+              subtitle: const Text(
+                  '仅 Android 有效：从下载到的 APK 中读取应用名称与图标并显示在列表中',
+                  style: TextStyle(fontSize: 12)),
             ),
           const SizedBox(height: 12),
           // —— 规则库：按系统分组 ——

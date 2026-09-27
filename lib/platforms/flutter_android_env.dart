@@ -4,6 +4,7 @@ library;
 
 import 'package:flutter/services.dart';
 import '../core/platform/android_env.dart';
+import '../core/platform/apk_info.dart';
 
 class FlutterAndroidEnv extends AndroidEnv {
   const FlutterAndroidEnv();
@@ -67,6 +68,32 @@ class FlutterAndroidEnv extends AndroidEnv {
   @override
   Future<String?> selfPackageName() async =>
       await _invoke<String>('selfPackageName');
+
+  @override
+  Future<ApkAppInfo> apkAppInfo(String path) async =>
+      ApkAppInfo.fromChannel(await _invoke<Object>('apkAppInfo', {'path': path}));
+
+  @override
+  Future<bool> startBackgroundService({String? title, String? text}) async =>
+      await _invoke<bool>('startBackgroundService', {
+        if (title != null) 'title': title,
+        if (text != null) 'text': text,
+      }) ??
+      false;
+
+  @override
+  Future<bool> updateBackgroundNotification(String title, String text) async =>
+      await _invoke<bool>('updateBackgroundNotification',
+          {'title': title, 'text': text}) ??
+      false;
+
+  @override
+  Future<bool> stopBackgroundService() async =>
+      await _invoke<bool>('stopBackgroundService') ?? false;
+
+  @override
+  Future<bool> isBackgroundServiceRunning() async =>
+      await _invoke<bool>('isBackgroundServiceRunning') ?? false;
 
   @override
   Future<bool> installWithSystem(String path) async =>

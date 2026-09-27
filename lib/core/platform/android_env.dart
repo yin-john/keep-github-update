@@ -8,6 +8,8 @@ library;
 
 import 'dart:io';
 
+import 'apk_info.dart';
+
 abstract class AndroidEnv {
   const AndroidEnv();
 
@@ -53,6 +55,23 @@ abstract class AndroidEnv {
   /// 本应用自身的包名（applicationId）。
   /// 用于识别「自己更新自己」——此时绝不能卸载目标包；读不到返回 null。
   Future<String?> selfPackageName();
+
+  /// 读取 APK 文件的软件名称与图标（图标会导出为 PNG，返回其路径）。
+  /// 非 Android 平台或不支持时返回空 [ApkAppInfo]。
+  Future<ApkAppInfo> apkAppInfo(String path);
+
+  /// 启动常驻后台服务（Android 为前台服务 + 常驻通知）。
+  /// 其它平台不支持，返回 false（由上层降级处理）。
+  Future<bool> startBackgroundService({String? title, String? text});
+
+  /// 更新常驻通知内容
+  Future<bool> updateBackgroundNotification(String title, String text);
+
+  /// 停止常驻后台服务
+  Future<bool> stopBackgroundService();
+
+  /// 常驻后台服务是否运行中
+  Future<bool> isBackgroundServiceRunning();
 
   /// 用系统安装器安装 APK（普通安装，需用户手动确认）
   Future<bool> installWithSystem(String path);
@@ -128,6 +147,23 @@ class ShellAndroidEnv extends AndroidEnv {
   /// CLI 场景下拿不到自身包名，交由调用方回退到常量
   @override
   Future<String?> selfPackageName() async => null;
+
+  @override
+  Future<ApkAppInfo> apkAppInfo(String path) async => const ApkAppInfo();
+
+  @override
+  Future<bool> startBackgroundService({String? title, String? text}) async =>
+      false;
+
+  @override
+  Future<bool> updateBackgroundNotification(String title, String text) async =>
+      false;
+
+  @override
+  Future<bool> stopBackgroundService() async => false;
+
+  @override
+  Future<bool> isBackgroundServiceRunning() async => false;
 
   @override
   Future<bool> installWithSystem(String path) async => false;

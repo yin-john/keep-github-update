@@ -4,9 +4,9 @@
 同一套核心逻辑提供 **GUI（Flutter）**、**CLI** 与 **TUI** 三种界面。
 
 ## 功能
-
+当前已实现windows和Android双平台
 - **多平台更新策略**
-  - Windows：Portable（zip/7z 解压覆盖、或**单文件 exe** 直接替换）、Installer（msi / setup.exe 静默安装）
+  - Windows：Portable（zip/7z 解压覆盖（可排除配置文件）、或**单文件 exe** 直接替换）、Installer（msi / setup.exe 静默安装）
   - Linux：Portable（tar.gz、**单文件 AppImage**）、Docker（拉取镜像并重建容器）
   - Android：APK 安装（root / Shizuku 静默安装，或**系统安装器**普通安装）、Magisk / KernelSU 模块刷入
 - **已装版本识别**：读取设备上真实安装的版本（Android 应用 versionName、Magisk 模块 `module.prop`、便携目录的版本记录文件），无 v 前缀等写法差异也能正确比对
@@ -16,6 +16,9 @@
 - **规则库**：按 Windows / Linux / Android 三系统提供预设匹配规则，粘贴 GitHub 链接即自动解析 owner/repo
 - **数据保护**：portable 覆盖更新时可指定需保留的**数据目录**与**数据文件**（支持多条正则）
 - **通知**：系统通知 + Webhook（可选触发事件）
+- **后台自动检测**：全局检测间隔（默认 6 小时）可在设置中调整，单个仓库可单独覆盖或关闭；检测到新版本时发系统通知
+- **后台保活 + 常驻通知栏**：Android 用原生前台服务（常驻通知，进程保活，通知中显示下次检测时间）；Windows / Linux 开启后关闭窗口不退出，继续按间隔检测
+- **仓库展示**：可为仓库设置**自定义显示名称**；Android 可选择「下载 APK 后自动获取图标与软件名称」，列表中图标 + 主标题为该名称、「作者/仓库名」以次一级字体显示在下一行；未设置则只显示作者/仓库名
 - **Android 权限管理**：存储（所有文件访问）、通知、root、Shizuku 的检测与申请
 
 ## 构建
@@ -51,7 +54,7 @@ grku config export <file>     # 导出配置
 grku tui                      # 交互式终端界面
 ```
 
-配置为 YAML/JSON，带 `configVersion` 字段（旧配置缺省按 1 处理）；示例见 `example_config.yaml`。
+配置为 YAML/JSON，带 `configVersion` 字段（当前为 2；旧配置缺省按 1 处理，加载时自动补齐新增字段）；示例见 `example_config.yaml`。
 
 ## 目录结构
 

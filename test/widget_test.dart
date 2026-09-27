@@ -8,5 +8,7 @@ void main() {
     // 页面在 build 中通过 Riverpod 读取配置，需要 ProviderScope
     await tester.pumpWidget(const ProviderScope(child: App()));
     expect(find.byType(MaterialApp), findsOneWidget);
+    // 卸载组件树：释放后台自动检测的定时器（ProviderScope 销毁时 stop）
+    await tester.pumpWidget(const SizedBox());
   });
 }

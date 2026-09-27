@@ -2,11 +2,13 @@
 # Windows: %APPDATA%\github_releases_keep_update\config.yaml
 # Linux:   ~/.config/github_releases_keep_update/config.yaml
 # 可用 `grku config import example_config.yaml` 导入
-configVersion: 1         # 配置格式版本（旧配置缺省按 1 处理）
+configVersion: 2         # 配置格式版本（旧配置缺省按 1 处理，加载时自动补齐 v2 字段）
 githubToken: ""          # 可选；留空则用匿名 API（60 次/小时）或直链模式
 systemNotificationsEnabled: true
 downloadDir: ""          # 留空用默认目录；Android 默认在公共存储 <外部存储>/grku/downloads（需存储权限）
-forceInstallIgnoreSignature: false   # Android：签名不一致时强制安装（需 root，会先卸载原应用，数据将丢失）
+checkIntervalMinutes: 360            # 全局自动检测间隔（分钟）；0 = 关闭自动检测
+backgroundKeepAlive: false           # 后台保活 + 常驻通知栏（Android 为前台服务；桌面端关闭窗口不退出）
+forceInstallIgnoreSignature: false   # Android：签名不一致时强制安装（需 root，会先卸载原应用，数据将丢失；对本应用自身的更新无效）
 mirrors:
   - name: ghproxy
     mode: prefix
@@ -30,6 +32,9 @@ repos:
     installDir: "C:\\Tools\\neovim"
     lastInstalledTag: null
     notificationsEnabled: true
+    # displayName: "Neovim"      # 自定义显示名称：列表中显示该名称，「作者/仓库名」以次一级字体显示在下一行
+    # checkIntervalMinutes: 60   # 该仓库单独的检测间隔（分钟）；不填则跟随全局，0 = 不自动检测
+    # lastCheckedAt: null        # 上次检测时间（由程序写入，用于间隔调度）
   - id: "Magisk-Modules-Alt-Repo/zygisk-assistant"
     owner: Magisk-Modules-Alt-Repo
     repo: zygisk-assistant

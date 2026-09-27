@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,7 +7,9 @@ import '../../core/config/app_paths.dart';
 import '../../core/config/config_repository.dart';
 import '../../core/config/models.dart';
 import '../../core/log/app_log.dart';
+import '../../core/scheduler/check_schedule.dart';
 import '../providers/app_providers.dart';
+import '../providers/check_providers.dart';
 import '../widgets/android_permission_section.dart';
 import '../widgets/path_field.dart';
 
@@ -64,6 +68,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _snack(String msg) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(msg)));
+
+  /// 后台保活能力的平台差异说明（能力随当前环境而不同）
+  String _keepAliveHint() {
+    if (Platform.isAndroid) {
+      return '开启后显示常驻通知并保持后台运行，按设定的间隔自动检测更新';
+    }
+    if (Platform.isWindows || Platform.isLinux) {
+      return '开启后关闭窗口不会退出应用，将继续按间隔检测；'
+          '桌面端没有系统级常驻通知栏，检测结果用系统通知提示';
+    }
+    return '当前平台不支持后台保活';
+  }
 
   /// 选择配置文件（导入用）；平台不支持文件选择时提示手动输入
   Future<void> _pickConfigFile() async {
@@ -264,6 +280,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onChanged: (v) =>
                 _patch((b) => b.copyWith(downloadDir: v.isEmpty ? null : v)),
           ),
+          const Divider(),
+          const Text('更新检测', style: TextStyle(fontWeight: FontWeight.w600)),
+          Row(
+            children: [
+              const Expanded(child: Text('全局检测间隔')),
+              DropdownButton<int>(
+                value: cfg.checkIntervalMinutes,
+                onChanged: (v) =>
+                    _patch((b) => b.copyWith(checkIntervalMinutes: v ?? 0)),
+                items: [
+                  for (final m in intervalPresets)
+                    DropdownMenuItem(
+                        value: m, child: Text(describeInterval(m))),
+                ],
+              ),
+            ],
+          ),
+          const Text('仓库可在编辑页单独覆盖该间隔；选「关闭」则不再自动检测任何仓库',
+              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: const Text('后台保活 + 常驻通知栏'),
+            subtitle: Text(_keepAliveHint(), style: const TextStyle(fontSize: 12)),
+            value: cfg.backgroundKeepAlive,
+            onChanged: (v) =>
+                _patch((b) => b.copyWith(backgroundKeepAlive: v)),
+          ),
+          if (cfg.backgroundKeepAlive && autoCheckEnabled(cfg.checkIntervalMinutes))
+            Padding(
+              padding: const EdgeInsets.only(left: 16, bottom: 4),
+              child: Text(
+                '下次检测：${describeTimeUntil(ref.read(schedulerProvider).nextCheckAt(), DateTime.now())}',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+            ),
           const Divider(),
           const Text('Webhook', style: TextStyle(fontWeight: FontWeight.w600)),
           SwitchListTile(

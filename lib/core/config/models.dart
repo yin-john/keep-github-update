@@ -283,6 +283,12 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
     this.apkInstallMethod,
     this.packageName,
     this.moduleId,
+    this.displayName,
+    this.fetchApkInfo = false,
+    this.apkLabel,
+    this.apkIconPath,
+    this.checkIntervalMinutes,
+    this.lastCheckedAt,
   });
 
   factory RepoConfig.fromJson(Map<String, dynamic> j) => RepoConfig(
@@ -309,6 +315,12 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
               ),
         packageName: j['packageName'] as String?,
         moduleId: j['moduleId'] as String?,
+        displayName: j['displayName'] as String?,
+        fetchApkInfo: j['fetchApkInfo'] as bool? ?? false,
+        apkLabel: j['apkLabel'] as String?,
+        apkIconPath: j['apkIconPath'] as String?,
+        checkIntervalMinutes: j['checkIntervalMinutes'] as int?,
+        lastCheckedAt: j['lastCheckedAt'] as String?,
       );
   final String id;
   final String owner;
@@ -324,6 +336,12 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
   final InstallMethod? apkInstallMethod; // Android APK 安装授权方式（null 用全局默认）
   final String? packageName; // Android APK：已安装应用的包名，用于读取设备上的已装版本
   final String? moduleId;
+  final String? displayName; // 自定义显示名称（留空则用自动获取的名称/作者仓库名）
+  final bool fetchApkInfo; // Android：下载 APK 后自动读取其图标与软件名称
+  final String? apkLabel; // 自动获取到的软件名称
+  final String? apkIconPath; // 自动获取到的图标文件（PNG）绝对路径
+  final int? checkIntervalMinutes; // 单独设置检测间隔（分钟）；null 用全局设置
+  final String? lastCheckedAt; // 上次检测时间（ISO8601，供间隔调度判断）
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -340,6 +358,13 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
         if (apkInstallMethod != null) 'apkInstallMethod': apkInstallMethod!.name,
         if (packageName != null) 'packageName': packageName,
         if (moduleId != null) 'moduleId': moduleId,
+        if (displayName != null) 'displayName': displayName,
+        if (fetchApkInfo) 'fetchApkInfo': true,
+        if (apkLabel != null) 'apkLabel': apkLabel,
+        if (apkIconPath != null) 'apkIconPath': apkIconPath,
+        if (checkIntervalMinutes != null)
+          'checkIntervalMinutes': checkIntervalMinutes,
+        if (lastCheckedAt != null) 'lastCheckedAt': lastCheckedAt,
       };
 
   RepoConfig copyWith({
@@ -357,6 +382,12 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
     InstallMethod? apkInstallMethod,
     String? packageName,
     String? moduleId,
+    String? displayName,
+    bool? fetchApkInfo,
+    String? apkLabel,
+    String? apkIconPath,
+    int? checkIntervalMinutes,
+    String? lastCheckedAt,
   }) =>
       RepoConfig(
         id: id ?? this.id,
@@ -373,9 +404,19 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
         apkInstallMethod: apkInstallMethod ?? this.apkInstallMethod,
         packageName: packageName ?? this.packageName,
         moduleId: moduleId ?? this.moduleId,
+        displayName: displayName ?? this.displayName,
+        fetchApkInfo: fetchApkInfo ?? this.fetchApkInfo,
+        apkLabel: apkLabel ?? this.apkLabel,
+        apkIconPath: apkIconPath ?? this.apkIconPath,
+        checkIntervalMinutes: checkIntervalMinutes ?? this.checkIntervalMinutes,
+        lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
       );
 
   String get fullName => '$owner/$repo';
+
+  /// 是否为 Android APK 安装类仓库（可获取图标/名称、有安装方式）
+  bool get isApkRepo =>
+      assetRules.any((r) => r.strategy == UpdateStrategy.apk);
 }
 
 /// 镜像配置
@@ -475,7 +516,12 @@ class WebhookConfig {
 }
 
 /// 当前配置文件格式版本
-const int currentConfigVersion = 1;
+///
+/// 1 → 2：新增检测间隔/后台保活（全局）与显示名称、APK 图标名称、仓库级检测间隔（仓库）
+const int currentConfigVersion = 2;
+
+/// 全局默认检测间隔（分钟）：6 小时
+const int defaultCheckIntervalMinutes = 360;
 
 /// 顶层应用配置
 class AppConfig { // Android：签名不一致时仍强制安装（需 root）
@@ -493,6 +539,8 @@ class AppConfig { // Android：签名不一致时仍强制安装（需 root）
     this.downloadThreads = 1,
     this.defaultInstallDir,
     this.forceInstallIgnoreSignature = false,
+    this.checkIntervalMinutes = defaultCheckIntervalMinutes,
+    this.backgroundKeepAlive = false,
   });
 
   factory AppConfig.fromJson(Map<String, dynamic> j) => AppConfig(
@@ -523,6 +571,9 @@ class AppConfig { // Android：签名不一致时仍强制安装（需 root）
         defaultInstallDir: j['defaultInstallDir'] as String?,
         forceInstallIgnoreSignature:
             j['forceInstallIgnoreSignature'] as bool? ?? false,
+        checkIntervalMinutes: j['checkIntervalMinutes'] as int? ??
+            defaultCheckIntervalMinutes,
+        backgroundKeepAlive: j['backgroundKeepAlive'] as bool? ?? false,
       );
   final int configVersion; // 配置文件格式版本（便于后续迁移）
   final String? githubToken;
@@ -536,6 +587,8 @@ class AppConfig { // Android：签名不一致时仍强制安装（需 root）
   final int downloadThreads; // 下载线程数（1 = 单线程）
   final String? defaultInstallDir; // 默认文件夹：新建仓库安装目录默认 <默认文件夹>/<作者名>@<repo名>
   final bool forceInstallIgnoreSignature;
+  final int checkIntervalMinutes; // 全局自动检测间隔（分钟）；0 = 关闭自动检测
+  final bool backgroundKeepAlive; // 后台保活（Android 会同时显示常驻通知）
 
   Map<String, dynamic> toJson() => {
         'configVersion': configVersion,
@@ -550,6 +603,9 @@ class AppConfig { // Android：签名不一致时仍强制安装（需 root）
         if (downloadThreads != 1) 'downloadThreads': downloadThreads,
         if (defaultInstallDir != null) 'defaultInstallDir': defaultInstallDir,
         if (forceInstallIgnoreSignature) 'forceInstallIgnoreSignature': true,
+        if (checkIntervalMinutes != defaultCheckIntervalMinutes)
+          'checkIntervalMinutes': checkIntervalMinutes,
+        if (backgroundKeepAlive) 'backgroundKeepAlive': true,
       };
 
   AppConfig copyWith({
@@ -565,6 +621,8 @@ class AppConfig { // Android：签名不一致时仍强制安装（需 root）
     int? downloadThreads,
     String? defaultInstallDir,
     bool? forceInstallIgnoreSignature,
+    int? checkIntervalMinutes,
+    bool? backgroundKeepAlive,
   }) =>
       AppConfig(
         configVersion: configVersion ?? this.configVersion,
@@ -582,6 +640,9 @@ class AppConfig { // Android：签名不一致时仍强制安装（需 root）
         defaultInstallDir: defaultInstallDir ?? this.defaultInstallDir,
         forceInstallIgnoreSignature:
             forceInstallIgnoreSignature ?? this.forceInstallIgnoreSignature,
+        checkIntervalMinutes:
+            checkIntervalMinutes ?? this.checkIntervalMinutes,
+        backgroundKeepAlive: backgroundKeepAlive ?? this.backgroundKeepAlive,
       );
 }
 
