@@ -6,7 +6,16 @@ import '../providers/app_providers.dart';
 /// 以及「无视签名强制安装」开关（仅在已获得 root 时显示）。
 /// 非 Android 平台整体不显示。
 class AndroidPermissionSection extends ConsumerStatefulWidget {
-  const AndroidPermissionSection({super.key});
+  const AndroidPermissionSection({
+    super.key,
+    this.forceInstallIgnoreSignature,
+    this.onForceInstallIgnoreSignatureChanged,
+  });
+
+  /// 「无视签名强制安装」开关的当前值；提供时以该值为准（设置页草稿模式），
+  /// 不提供时直接读写 configProvider（即时保存）。
+  final bool? forceInstallIgnoreSignature;
+  final ValueChanged<bool>? onForceInstallIgnoreSignatureChanged;
 
   @override
   ConsumerState<AndroidPermissionSection> createState() =>
@@ -156,10 +165,12 @@ class _AndroidPermissionSectionState
                 '实验性功能，原则上不会丢数据\n'
                 '对本应用更新时本应用会自动退出，但不会影响更新',
                 style: TextStyle(fontSize: 12)),
-            value: cfg.forceInstallIgnoreSignature,
-            onChanged: (v) => ref
-                .read(configProvider.notifier)
-                .setConfig(cfg.copyWith(forceInstallIgnoreSignature: v)),
+            value: widget.forceInstallIgnoreSignature ??
+                cfg.forceInstallIgnoreSignature,
+            onChanged: widget.onForceInstallIgnoreSignatureChanged ??
+                (v) => ref
+                    .read(configProvider.notifier)
+                    .setConfig(cfg.copyWith(forceInstallIgnoreSignature: v)),
           ),
         const Text('授权动作会跳转系统界面，完成后返回本页点「重新检测」刷新状态',
             style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),

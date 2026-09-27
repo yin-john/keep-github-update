@@ -98,6 +98,12 @@ class RepoCard extends StatelessWidget { // 非空则显示「重试安装」（
                     ],
                   ),
                 ),
+              ],
+            ),
+            // 管理按钮行：位于名称下方、检测等操作按钮上方
+            Row(
+              children: [
+                const Spacer(),
                 if (onClearDownloads != null)
                   IconButton(
                       icon: const Icon(Icons.delete_sweep_outlined, size: 18),

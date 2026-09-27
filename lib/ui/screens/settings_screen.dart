@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/config/app_paths.dart';
 import '../../core/config/config_repository.dart';
 import '../../core/config/models.dart';
+import '../../core/config/settings_draft.dart';
 import '../../core/log/app_log.dart';
 import '../../core/scheduler/check_schedule.dart';
 import '../providers/app_providers.dart';
@@ -24,6 +25,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _token;
   late final TextEditingController _whUrl;
   late final TextEditingController _importPath;
+  /// 设置草稿：所有修改先存这里，点「保存」才写入 configProvider
+  late final SettingsDraft _draft;
   final List<int> _mirrorIds = [];
   int _nextMirrorId = 0;
 
@@ -31,6 +34,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     final cfg = ref.read(configProvider);
+    _draft = SettingsDraft(cfg);
     _token = TextEditingController(text: cfg.githubToken ?? '');
     _whUrl = TextEditingController(text: cfg.webhook.url);
     _importPath = TextEditingController();
@@ -45,25 +49,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.dispose();
   }
 
-  /// 以「最新 provider 配置」为基础做增量修改，避免用过期的本地副本覆盖仓库列表等字段
-  void _patch(AppConfig Function(AppConfig base) patch, {bool notify = false}) {
-    final base = ref.read(configProvider);
-    ref.read(configProvider.notifier).setConfig(patch(base));
-    if (notify) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('设置已保存')));
-    }
+  /// 修改草稿（不写入 provider，未保存前不生效）
+  void _patch(AppConfig Function(AppConfig base) patch) {
+    setState(() => _draft.patch(patch));
   }
 
+  /// 保存：草稿整体提交到 provider（repos 取 provider 最新值），并应用日志开关副作用
   void _save() {
-    _patch(
+    _draft.patch(
       (b) => b.copyWith(
         githubToken: _token.text.isEmpty ? null : _token.text,
         webhook: b.webhook.copyWith(url: _whUrl.text),
       ),
-      notify: true,
     );
-    AppLog.info('保存设置（Token / Webhook）');
+    final committed = _draft.commitTo(ref.read(configProvider));
+    ref.read(configProvider.notifier).setConfig(committed);
+    _draft.reset(committed);
+    AppLog.configure(committed.loggingEnabled);
+    if (committed.loggingEnabled) AppLog.info('保存设置');
+    setState(() {});
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('设置已保存')));
+  }
+
+  /// 有未保存修改时，返回前询问是否放弃
+  Future<bool> _confirmDiscard() async {
+    if (!_draft.dirty) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('有未保存的设置'),
+        content: const Text('离开将放弃未保存的修改，确定要离开吗？'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('继续编辑')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('放弃修改')),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   void _snack(String msg) => ScaffoldMessenger.of(context)
@@ -139,6 +166,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(configProvider.notifier).reload();
     final cfg = ref.read(configProvider);
     setState(() {
+      _draft.reset(cfg); // 导入是显式动作：直接以导入后的配置为新基准
       _token.text = cfg.githubToken ?? '';
       _whUrl.text = cfg.webhook.url;
       _mirrorIds
@@ -181,7 +209,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cfg = ref.watch(configProvider);
+    ref.listen<AppConfig>(configProvider, (prev, next) {
+      // 配置被外部改变（异步加载完成 / 导入 / 重载）且本页无未保存修改时，
+      // 草稿跟随最新配置；有未保存修改时保持草稿不动。
+      if (!_draft.dirty) {
+        _draft.reset(next);
+        setState(() {});
+      }
+    });
+    final cfg = _draft.value;
     // 保证镜像 key 列表与镜像数量一致：
     // 配置是异步加载的，initState 时可能还是空配置，加载后镜像数量会变化，
     // 若不同步会导致 _mirrorIds[i] 越界（release 下表现为整页灰色）。
@@ -194,10 +230,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // 仅当存在 Android 规则时，才展示 Android 专属（root/shizuku）设置
     final hasAndroidRepo = cfg.repos
         .any((r) => r.assetRules.any((x) => x.platform.usesApkInstallMethod));
-    return Scaffold(
+    return PopScope(
+      canPop: !_draft.dirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (await _confirmDiscard() && mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
           title: const Text('设置'),
-          actions: [TextButton(onPressed: _save, child: const Text('保存'))]),
+          actions: [
+            Badge(
+              isLabelVisible: _draft.dirty,
+              child: TextButton(onPressed: _save, child: const Text('保存')),
+            ),
+          ]),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
@@ -229,7 +278,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ],
           const SizedBox(height: 12),
-          const AndroidPermissionSection(),
+          AndroidPermissionSection(
+            forceInstallIgnoreSignature: cfg.forceInstallIgnoreSignature,
+            onForceInstallIgnoreSignatureChanged: (v) => _patch(
+                (b) => b.copyWith(forceInstallIgnoreSignature: v)),
+          ),
           const Divider(),
           SwitchListTile(
             title: const Text('系统级通知'),
@@ -359,11 +412,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             title: const Text('记录操作日志'),
             subtitle: const Text('检测 / 更新 / 配置变更等操作写入日志文件'),
             value: cfg.loggingEnabled,
-            onChanged: (v) {
-              AppLog.configure(v);
-              if (v) AppLog.info('开启日志');
-              _patch((b) => b.copyWith(loggingEnabled: v));
-            },
+            onChanged: (v) => _patch((b) => b.copyWith(loggingEnabled: v)),
           ),
           if (cfg.loggingEnabled) ...[
             Row(
@@ -400,7 +449,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onDelete: () {
                 setState(() => _mirrorIds.removeAt(i));
                 _patch((b) => b.copyWith(mirrors: [...b.mirrors]..removeAt(i)));
-                AppLog.info('删除镜像 #$i');
               },
             );
           }),
@@ -415,7 +463,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         pattern: '',
                         replacement: '')
                   ]));
-              AppLog.info('添加镜像');
             },
             icon: const Icon(Icons.add),
             label: const Text('添加镜像'),
@@ -456,6 +503,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Text('导入会先校验：路径为空、文件为空或不含任何仓库时都会被拦下，不会清空现有配置',
               style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
         ],
+      ),
       ),
     );
   }
