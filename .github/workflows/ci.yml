@@ -1,8 +1,12 @@
 name: CI
 
-# 每次提交 / PR 都会执行；也可在 Actions 页面手动触发
+# 触发策略：
+#  - Pull Request：只做「静态分析 + 单元测试」，快速反馈、不构建产物
+#  - 合并（推送）到 main：分析 + 测试 + 构建 Windows / Android + 发布 Release
+#  - 也可在 Actions 页面手动触发（在 main 上手动触发会照常构建与发布）
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -47,6 +51,8 @@ jobs:
     name: 构建 Windows 端（GUI + CLI）
     runs-on: windows-latest
     needs: test
+    # PR 只跑测试；构建在合并到 main 之后进行
+    if: github.event_name != 'pull_request'
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
@@ -93,6 +99,8 @@ jobs:
     # 固定 24.04：ubuntu-latest 将于 2026-10-19 起迁移到 Ubuntu 26
     runs-on: ubuntu-24.04
     needs: test
+    # PR 只跑测试；构建在合并到 main 之后进行
+    if: github.event_name != 'pull_request'
     timeout-minutes: 60
     # 签名信息放在 Environment secrets 里，必须声明同名 environment 才能读到；
     # 若你把它们改成了 Repository secrets，删掉这行即可。
