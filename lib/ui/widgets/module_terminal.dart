@@ -39,8 +39,8 @@ ModuleTerminalHandle openModuleTerminal(BuildContext context) {
         backgroundColor: const Color(0xFF101827),
         title: const Text('模块安装终端',
             style: TextStyle(fontSize: 16, color: Colors.white)),
-        content: SizedBox(width: double.maxFinite, height: 320,
-            child: const _TerminalView()),
+        content: const SizedBox(
+            width: double.maxFinite, height: 320, child: _TerminalView()),
         actions: [
           TextButton(onPressed: close, child: const Text('关闭窗口')),
         ],
