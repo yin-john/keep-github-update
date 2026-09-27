@@ -324,6 +324,8 @@ void _applyApkInfo(
             (info.version?.isNotEmpty ?? false))
         ? info.version
         : null,
+    // Xposed 模块标记（分类分栏用）；非 Xposed 应用会写 false
+    xposedModule: info.xposed,
     // 自动补全包名（用于读取设备上的已装版本）；用户已配置时不覆盖
     packageName: ((r.packageName?.isEmpty ?? true) &&
             (info.packageName?.isNotEmpty ?? false))
