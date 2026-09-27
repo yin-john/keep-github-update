@@ -204,6 +204,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
       // 保留自动获取到的信息与检测时间，避免编辑后丢失
       apkLabel: widget.repo?.apkLabel,
       apkIconPath: widget.repo?.apkIconPath,
+      xposedModule: widget.repo?.xposedModule ?? false,
       lastCheckedAt: widget.repo?.lastCheckedAt,
       checkIntervalMinutes: _intervalOverride,
       // 桌面端启动入口（Android 通过包名直接打开应用，无需配置）

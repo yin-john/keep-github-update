@@ -21,10 +21,58 @@ class RepoListScreen extends ConsumerStatefulWidget {
   ConsumerState<RepoListScreen> createState() => _RepoListScreenState();
 }
 
+/// 仓库分类（Android 端分栏用）
+enum RepoCategory {
+  all('全部'),
+  app('普通应用'),
+  xposed('LSPosed 模块'),
+  magisk('Magisk/KSU 模块');
+
+  const RepoCategory(this.label);
+  final String label;
+}
+
 class _RepoListScreenState extends ConsumerState<RepoListScreen> {
   final Map<String, CancelToken> _cancel = {};
   final Set<String> _selected = {}; // 批量更新勾选
   bool _busy = false; // 更新（下载/安装）进行中
+  RepoCategory _category = RepoCategory.all; // 当前分类（仅 Android 显示）
+
+  /// 按当前分类过滤仓库
+  List<RepoConfig> _filterByCategory(List<RepoConfig> repos) {
+    switch (_category) {
+      case RepoCategory.all:
+        return repos;
+      case RepoCategory.app:
+        return repos.where((r) => r.isNormalAppRepo).toList();
+      case RepoCategory.xposed:
+        return repos.where((r) => r.isXposedModuleRepo).toList();
+      case RepoCategory.magisk:
+        return repos.where((r) => r.isMagiskModuleRepo).toList();
+    }
+  }
+
+  /// Android 端顶部分类分栏（全部 / 普通应用 / LSPosed / Magisk/KSU）
+  Widget _categoryBar(int Function(RepoCategory) countOf) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final c in RepoCategory.values) ...[
+              ChoiceChip(
+                label: Text('${c.label} (${countOf(c)})'),
+                selected: _category == c,
+                onSelected: (_) => setState(() => _category = c),
+              ),
+              const SizedBox(width: 6),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   /// 检测状态统一由 [checkProvider] 管理：手动检测与后台自动检测共用同一份状态
   CheckNotifier get _checker => ref.read(checkProvider.notifier);
@@ -558,6 +606,15 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
     final repos = ref.watch(configProvider).repos;
     final checks = ref.watch(checkProvider);
     final busy = _busy || checks.values.any((c) => c.checking);
+    // Android 端按分类分栏过滤；其它平台全量显示
+    final isAndroid = Platform.isAndroid;
+    final visible = isAndroid ? _filterByCategory(repos) : repos;
+    int countOf(RepoCategory c) => switch (c) {
+          RepoCategory.all => repos.length,
+          RepoCategory.app => repos.where((r) => r.isNormalAppRepo).length,
+          RepoCategory.xposed => repos.where((r) => r.isXposedModuleRepo).length,
+          RepoCategory.magisk => repos.where((r) => r.isMagiskModuleRepo).length,
+        };
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -569,7 +626,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
             onPressed:
                 busy ? null : (_selected.isEmpty ? _scanAll : _checkSelected),
           ),
-          _overflowMenu(repos),
+          _overflowMenu(visible),
         ],
         bottom: busy
             ? const PreferredSize(
@@ -594,15 +651,20 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
             _selectionBar(),
             const Divider(height: 1),
           ],
+          // Android 端分类分栏：全部 / 普通应用 / LSPosed / Magisk/KSU
+          if (isAndroid && repos.isNotEmpty) _categoryBar(countOf),
           Expanded(
-            child: repos.isEmpty
-                ? const Center(
-                    child: Text('暂无仓库，点右下角 + 添加',
-                        style: TextStyle(color: Color(0xFF94A3B8))))
+            child: visible.isEmpty
+                ? Center(
+                    child: Text(
+                        repos.isEmpty
+                            ? '暂无仓库，点右下角 + 添加'
+                            : '该分类下暂无仓库',
+                        style: const TextStyle(color: Color(0xFF94A3B8))))
                 : ListView.builder(
-              itemCount: repos.length,
+              itemCount: visible.length,
               itemBuilder: (_, i) {
-                final r = repos[i];
+                final r = visible[i];
                 final st = checks[r.fullName] ?? const RepoCheckState();
                 return RepoCard(
                   repo: r,

@@ -254,7 +254,10 @@ class MainActivity : FlutterActivity() {
     private fun apkAppInfo(path: String?): Map<String, Any?>? {
         if (path == null) return null
         return try {
-            val info = packageManager.getPackageArchiveInfo(path, 0) ?: return null
+            // 带 GET_META_DATA 才能读到 xposedmodule 等元数据
+            val info = packageManager.getPackageArchiveInfo(
+                path, PackageManager.GET_META_DATA
+            ) ?: return null
             val appInfo = info.applicationInfo ?: return null
             // 未安装的 APK 需要显式指定路径，loadLabel / loadIcon 才能读到资源
             appInfo.sourceDir = path
@@ -268,10 +271,22 @@ class MainActivity : FlutterActivity() {
                 "label" to label,
                 "iconPath" to saveApkIcon(appInfo, info.packageName),
                 "packageName" to info.packageName,
-                "version" to info.versionName
+                "version" to info.versionName,
+                "xposed" to hasXposedMeta(appInfo)
             )
         } catch (e: Exception) {
             null
+        }
+    }
+
+    /** 应用是否声明 xposedmodule 元数据（XP/LSPosed 模块） */
+    private fun hasXposedMeta(appInfo: android.content.pm.ApplicationInfo): Boolean {
+        return try {
+            val md = appInfo.metaData
+            md?.getBoolean("xposedmodule", false) == true ||
+                md?.get("xposedmodule")?.toString() == "true"
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -285,10 +300,7 @@ class MainActivity : FlutterActivity() {
         return try {
             val pm = packageManager
             val isXposed = try {
-                val info = pm.getApplicationInfo(pkg, PackageManager.GET_META_DATA)
-                val md = info.metaData
-                md?.getBoolean("xposedmodule", false) == true ||
-                    md?.get("xposedmodule")?.toString() == "true"
+                hasXposedMeta(pm.getApplicationInfo(pkg, PackageManager.GET_META_DATA))
             } catch (e: Exception) {
                 false
             }
@@ -332,7 +344,7 @@ class MainActivity : FlutterActivity() {
     private fun installedAppInfo(pkg: String?): Map<String, Any?>? {
         if (pkg == null) return null
         return try {
-            val info = packageManager.getPackageInfo(pkg, 0)
+            val info = packageManager.getPackageInfo(pkg, PackageManager.GET_META_DATA)
             val appInfo = info.applicationInfo ?: return null
             val label = try {
                 appInfo.loadLabel(packageManager).toString()
@@ -343,7 +355,8 @@ class MainActivity : FlutterActivity() {
                 "label" to label,
                 "iconPath" to saveApkIcon(appInfo, info.packageName),
                 "packageName" to info.packageName,
-                "version" to info.versionName
+                "version" to info.versionName,
+                "xposed" to hasXposedMeta(appInfo)
             )
         } catch (e: Exception) {
             null

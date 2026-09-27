@@ -53,6 +53,7 @@ String formatApkInfoTxt(ApkAppInfo info) {
     b.writeln('包名: ${info.packageName}');
   }
   if (info.version?.isNotEmpty ?? false) b.writeln('版本: ${info.version}');
+  if (info.xposed) b.writeln('Xposed 模块: 是');
   return b.toString();
 }
 
@@ -61,6 +62,7 @@ ApkAppInfo parseApkInfoTxt(String content, {String? iconPath}) {
   String? label;
   String? pkg;
   String? ver;
+  var xposed = false;
   for (final raw in content.split('\n')) {
     final line = raw.trim();
     if (line.isEmpty) continue;
@@ -70,6 +72,8 @@ ApkAppInfo parseApkInfoTxt(String content, {String? iconPath}) {
       pkg = line.substring(3).trim();
     } else if (line.startsWith('版本:')) {
       ver = line.substring(3).trim();
+    } else if (line.startsWith('Xposed 模块:')) {
+      xposed = line.substring('Xposed 模块:'.length).trim() == '是';
     } else if (label == null) {
       label = line; // 旧格式：第一行就是名称
     }
@@ -80,6 +84,7 @@ ApkAppInfo parseApkInfoTxt(String content, {String? iconPath}) {
     packageName: clean(pkg),
     version: clean(ver),
     iconPath: iconPath,
+    xposed: xposed,
   );
 }
 
@@ -159,6 +164,7 @@ Future<ApkAppInfo?> _persistInfo(Directory d, ApkAppInfo info) async {
     packageName: info.packageName,
     version: info.version,
     iconPath: iconPath,
+    xposed: info.xposed,
   );
 }
 

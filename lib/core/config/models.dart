@@ -292,6 +292,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
     this.downloadedVersion,
     this.launchFile,
     this.launchCmd,
+    this.xposedModule = false,
   });
 
   factory RepoConfig.fromJson(Map<String, dynamic> j) => RepoConfig(
@@ -328,6 +329,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
         downloadedVersion: j['downloadedVersion'] as String?,
         launchFile: j['launchFile'] as String?,
         launchCmd: j['launchCmd'] as String?,
+        xposedModule: j['xposedModule'] as bool? ?? false,
       );
   final String id;
   final String owner;
@@ -352,6 +354,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
   final String? downloadedVersion; // 本地已下载 APK 的版本（versionName）
   final String? launchFile; // 桌面端启动文件（相对安装目录，如 app.exe）；为空则卡片不显示「启动」
   final String? launchCmd; // 桌面端启动命令（可选；留空直接启动启动文件）
+  final bool xposedModule; // Android APK：声明 xposedmodule 元数据（XP/LSPosed 模块）
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -378,6 +381,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
         if (downloadedVersion != null) 'downloadedVersion': downloadedVersion,
         if (launchFile != null) 'launchFile': launchFile,
         if (launchCmd != null) 'launchCmd': launchCmd,
+        if (xposedModule) 'xposedModule': true, // 默认关闭，仅显式开启时写入
       };
 
   RepoConfig copyWith({
@@ -404,6 +408,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
     String? downloadedVersion,
     String? launchFile,
     String? launchCmd,
+    bool? xposedModule,
   }) =>
       RepoConfig(
         id: id ?? this.id,
@@ -429,6 +434,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
         downloadedVersion: downloadedVersion ?? this.downloadedVersion,
         launchFile: launchFile ?? this.launchFile,
         launchCmd: launchCmd ?? this.launchCmd,
+        xposedModule: xposedModule ?? this.xposedModule,
       );
 
   String get fullName => '$owner/$repo';
@@ -436,6 +442,16 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
   /// 是否为 Android APK 安装类仓库（可获取图标/名称、有安装方式）
   bool get isApkRepo =>
       assetRules.any((r) => r.strategy == UpdateStrategy.apk);
+
+  /// 是否为 Magisk/KernelSU 模块仓库（zip 刷入）
+  bool get isMagiskModuleRepo =>
+      assetRules.any((r) => r.strategy == UpdateStrategy.module);
+
+  /// 是否为 Xposed/LSPosed 模块仓库（APK 应用且声明了 xposedmodule 元数据）
+  bool get isXposedModuleRepo => isApkRepo && xposedModule;
+
+  /// 是否为普通应用（非模块：APK 普通应用 / 桌面 portable/installer/docker）
+  bool get isNormalAppRepo => !isMagiskModuleRepo && !isXposedModuleRepo;
 }
 
 /// 镜像配置
