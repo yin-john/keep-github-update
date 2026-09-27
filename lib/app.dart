@@ -115,10 +115,22 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   /// 启动时按配置启用后台保活与自动检测
-  void _bootstrapBackground() {
+  ///
+  /// 必须等配置从磁盘加载完成再操作：配置是异步加载的，若先用默认值（未开启）
+  /// 去「停服务」、紧接着又按加载后的值（已开启）去「启服务」，Android 侧会先处理
+  /// 停止动作而始终没有调用 startForeground()，系统随即抛
+  /// RemoteServiceException: Context.startForegroundService() did not then call
+  /// Service.startForeground()，表现为开启常驻通知后启动即崩溃、无法打开。
+  Future<void> _bootstrapBackground() async {
+    try {
+      await ref.read(configProvider.notifier).ready;
+    } catch (_) {
+      // 配置加载失败时按当前（默认）值处理
+    }
+    if (!mounted) return;
     final cfg = ref.read(configProvider);
     _syncScheduler(cfg.checkIntervalMinutes);
-    _applyKeepAlive(cfg.backgroundKeepAlive);
+    await _applyKeepAlive(cfg.backgroundKeepAlive);
   }
 
   /// 按全局间隔启停自动检测调度
@@ -141,16 +153,27 @@ class _AppShellState extends ConsumerState<AppShell>
     final env = ref.read(androidEnvProvider);
     try {
       if (env.isAndroid) {
-        if (enabled) {
-          final ok = await env.startBackgroundService(
-            title: 'GRKU 后台运行中',
-            text: '正在按设定的间隔检测更新',
-          );
-          if (!ok && mounted) {
-            _snack('常驻通知启动失败：请确认已允许通知权限');
-          }
-        } else {
+        if (!enabled) {
           await env.stopBackgroundService();
+          return;
+        }
+        final ok = await env.startBackgroundService(
+          title: 'GRKU 后台运行中',
+          text: '正在按设定的间隔检测更新',
+        );
+        var running = ok;
+        if (ok) {
+          // 稍等片刻确认服务真的进入前台；起不来就自动关闭开关，
+          // 否则该开关是持久化的，会造成每次启动都失败
+          await Future<void>.delayed(const Duration(milliseconds: 700));
+          if (!mounted) return;
+          running = await env.isBackgroundServiceRunning();
+        }
+        if (!running) {
+          ref.read(configProvider.notifier).setConfig(
+              ref.read(configProvider).copyWith(backgroundKeepAlive: false));
+          _snack('常驻通知/后台保活启动失败，已自动关闭该开关'
+              '（请确认已允许通知权限后重试）');
         }
         return;
       }

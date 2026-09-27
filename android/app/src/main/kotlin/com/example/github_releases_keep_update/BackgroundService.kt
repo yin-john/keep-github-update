@@ -60,15 +60,20 @@ class BackgroundService : Service() {
             }
         }
 
-        /** 停止常驻服务（同时移除通知） */
+        /**
+         * 停止常驻服务。
+         *
+         * 必须用 stopService（而不是 startService(ACTION_STOP)）：
+         * 后者会「先把服务拉起来、再让它执行 STOP 分支而不调用 startForeground()」，
+         * 若期间又收到 startForegroundService，系统会抛
+         * RemoteServiceException: Context.startForegroundService() did not then call
+         * Service.startForeground() 导致进程崩溃。
+         */
         fun stop(context: Context) {
-            val intent = Intent(context, BackgroundService::class.java).apply {
-                action = ACTION_STOP
-            }
             try {
-                context.startService(intent)
-            } catch (_: Exception) {
                 context.stopService(Intent(context, BackgroundService::class.java))
+            } catch (_: Exception) {
+                // 服务未运行时忽略
             }
         }
     }
@@ -76,32 +81,32 @@ class BackgroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_STOP -> {
-                running = false
+        if (intent?.action == ACTION_STOP) {
+            running = false
+            stopForegroundCompat()
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        // 只要是经 startForegroundService 拉起的服务，就必须在超时前调用 startForeground()；
+        // 因此除 STOP 外的所有 action（含 UPDATE、null）都统一走 startForeground，
+        // 并且整体兜底：任何异常都不能让应用进程崩溃。
+        return try {
+            val n = buildNotification(
+                intent?.getStringExtra(EXTRA_TITLE) ?: "GRKU 后台运行中",
+                intent?.getStringExtra(EXTRA_TEXT) ?: "正在按设定的间隔检测更新"
+            )
+            startForegroundCompat(n)
+            running = true
+            START_STICKY
+        } catch (e: Exception) {
+            // 常驻通知创建/前台化失败（如缺少权限、被系统限制）时安静退出，不影响前台使用
+            running = false
+            try {
                 stopForegroundCompat()
-                stopSelf()
-                return START_NOT_STICKY
+            } catch (_: Exception) {
             }
-
-            ACTION_UPDATE -> {
-                val n = buildNotification(
-                    intent.getStringExtra(EXTRA_TITLE) ?: "GRKU 后台运行中",
-                    intent.getStringExtra(EXTRA_TEXT) ?: "正在按设定的间隔检测更新"
-                )
-                notificationManager().notify(NOTIFICATION_ID, n)
-                return START_STICKY
-            }
-
-            else -> {
-                val n = buildNotification(
-                    intent?.getStringExtra(EXTRA_TITLE) ?: "GRKU 后台运行中",
-                    intent?.getStringExtra(EXTRA_TEXT) ?: "正在按设定的间隔检测更新"
-                )
-                startForegroundCompat(n)
-                running = true
-                return START_STICKY
-            }
+            stopSelf()
+            START_NOT_STICKY
         }
     }
 
