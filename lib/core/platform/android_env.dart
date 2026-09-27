@@ -64,6 +64,13 @@ abstract class AndroidEnv {
   /// 非 Android 平台、应用未安装或不支持时返回空 [ApkAppInfo]。
   Future<ApkAppInfo> installedAppInfo(String packageName);
 
+  /// 启动已安装应用；若该应用是 XP（LSPosed）模块，先尝试打开其模块配置
+  /// 界面（LSPosed 管理器），失败回退直接打开应用。失败返回 false。
+  Future<bool> launchApp(String packageName);
+
+  /// 用系统浏览器打开 URL（Android 原生 intent）。失败返回 false。
+  Future<bool> openUrl(String url);
+
   /// 启动常驻后台服务（Android 为前台服务 + 常驻通知）。
   /// 其它平台不支持，返回 false（由上层降级处理）。
   Future<bool> startBackgroundService({String? title, String? text});
@@ -158,6 +165,12 @@ class ShellAndroidEnv extends AndroidEnv {
   @override
   Future<ApkAppInfo> installedAppInfo(String packageName) async =>
       const ApkAppInfo();
+
+  @override
+  Future<bool> launchApp(String packageName) async => false;
+
+  @override
+  Future<bool> openUrl(String url) async => false;
 
   @override
   Future<bool> startBackgroundService({String? title, String? text}) async =>

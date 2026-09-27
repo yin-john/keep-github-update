@@ -45,6 +45,8 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
   late final TextEditingController _packageName;
   late final TextEditingController _moduleId;
   late final TextEditingController _displayName;
+  late final TextEditingController _launchFile; // 桌面端启动文件（相对安装目录）
+  late final TextEditingController _launchCmd; // 桌面端启动命令（可选）
   late List<_RuleDraft> _drafts;
   int _nextRuleId = 0;
   int? _selectedRuleId; // 当前选中的规则框（规则库将覆盖它）
@@ -69,6 +71,8 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
     _packageName = TextEditingController(text: r?.packageName ?? '');
     _moduleId = TextEditingController(text: r?.moduleId ?? '');
     _displayName = TextEditingController(text: r?.displayName ?? '');
+    _launchFile = TextEditingController(text: r?.launchFile ?? '');
+    _launchCmd = TextEditingController(text: r?.launchCmd ?? '');
     _fetchApkInfo = r?.fetchApkInfo ?? true; // 新仓库默认开启
     _intervalOverride = r?.checkIntervalMinutes;
     _apkMethod = r?.apkInstallMethod;
@@ -170,6 +174,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
       return;
     }
     final rules = _drafts.map((d) => d.rule).toList();
+    final host = _hostPlatform();
     final r = RepoConfig(
       id: widget.repo?.id ?? '${_owner.text}/${_repo.text}',
       owner: _owner.text,
@@ -201,6 +206,17 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
       apkIconPath: widget.repo?.apkIconPath,
       lastCheckedAt: widget.repo?.lastCheckedAt,
       checkIntervalMinutes: _intervalOverride,
+      // 桌面端启动入口（Android 通过包名直接打开应用，无需配置）
+      launchFile: host != PlatformType.android &&
+              rules.any((x) => x.strategy.usesInstallDir) &&
+              _launchFile.text.trim().isNotEmpty
+          ? _launchFile.text.trim()
+          : null,
+      launchCmd: host != PlatformType.android &&
+              rules.any((x) => x.strategy.usesInstallDir) &&
+              _launchCmd.text.trim().isNotEmpty
+          ? _launchCmd.text.trim()
+          : null,
     );
     final notifier = ref.read(configProvider.notifier);
     if (widget.repo != null) {
@@ -337,6 +353,22 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
                       onPressed: _pickInstallDir,
                     )),
                 onChanged: (_) => _installEdited = true),
+          if (host != PlatformType.android && showInstallDir) ...[
+            TextField(
+                controller: _launchFile,
+                decoration: const InputDecoration(
+                    labelText: '启动文件（相对安装目录，可选）',
+                    hintText: r'例: app.exe 或 run.sh',
+                    helperText: '配置后仓库卡片显示「启动」按钮；留空不显示'),
+                onChanged: (_) => _installEdited = true),
+            TextField(
+                controller: _launchCmd,
+                decoration: const InputDecoration(
+                    labelText: '启动命令（可选）',
+                    hintText: r'例: app.exe --minimized',
+                    helperText: '留空则直接启动上面的启动文件；填写后在安装目录下执行'),
+              ),
+          ],
           if (showDocker) ...[
             TextField(
                 controller: _container,
@@ -402,7 +434,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
             ),
           const SizedBox(height: 12),
           // —— 规则库：按系统分组 ——
-          RulesLibrary(onPick: _applyPreset),
+          RulesLibrary(platform: host, onPick: _applyPreset),
           const SizedBox(height: 4),
           const Text('资产匹配规则',
               style: TextStyle(fontWeight: FontWeight.w600)),
@@ -429,6 +461,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
             ),
           ..._drafts.asMap().entries.map((e) => RuleEditor(
                 key: ValueKey(e.value.id),
+                platform: host,
                 initial: e.value.rule,
                 selected: e.value.id == _selectedRuleId,
                 onSelect: () => setState(() => _selectedRuleId = e.value.id),

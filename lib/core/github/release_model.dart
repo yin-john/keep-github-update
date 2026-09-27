@@ -31,6 +31,7 @@ class Release {
     required this.prerelease,
     required this.htmlUrl,
     required this.assets,
+    this.body,
   });
 
   factory Release.fromJson(Map<String, dynamic> j) => Release(
@@ -44,6 +45,7 @@ class Release {
         assets: (j['assets'] as List? ?? [])
             .map((e) => Asset.fromJson(e as Map<String, dynamic>))
             .toList(),
+        body: j['body'] as String?,
       );
   final String tagName;
   final String name;
@@ -51,4 +53,7 @@ class Release {
   final bool prerelease;
   final String htmlUrl;
   final List<Asset> assets;
+
+  /// Changelog（GitHub release 的 body，Markdown 文本）；直链模式为 null
+  final String? body;
 }

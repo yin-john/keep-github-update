@@ -40,6 +40,20 @@ class ReleaseFetcher {
     return release;
   }
 
+  /// 列出仓库的全部 release（含预发布；「更多版本」页用）。
+  /// API 失败（限流/无 Token/网络）时回退直链——直链只能解析最新版，返回单条。
+  Future<List<Release>> listReleases(String owner, String repo,
+      {int perPage = 100}) async {
+    try {
+      if (preferApi) {
+        return await api.listReleases(owner, repo, perPage: perPage);
+      }
+    } catch (_) {
+      // 回退直链
+    }
+    return [await direct.fetchRelease(owner, repo)];
+  }
+
   void clearCache() => _cache.clear();
 }
 

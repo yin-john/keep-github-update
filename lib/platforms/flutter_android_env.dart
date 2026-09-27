@@ -79,6 +79,14 @@ class FlutterAndroidEnv extends AndroidEnv {
           'installedAppInfo', {'package': packageName}));
 
   @override
+  Future<bool> launchApp(String packageName) async =>
+      await _invoke<bool>('launchApp', {'package': packageName}) ?? false;
+
+  @override
+  Future<bool> openUrl(String url) async =>
+      await _invoke<bool>('openUrl', {'url': url}) ?? false;
+
+  @override
   Future<bool> startBackgroundService({String? title, String? text}) async =>
       await _invoke<bool>('startBackgroundService', {
         if (title != null) 'title': title,
