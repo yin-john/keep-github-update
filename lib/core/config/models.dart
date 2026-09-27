@@ -284,7 +284,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
     this.packageName,
     this.moduleId,
     this.displayName,
-    this.fetchApkInfo = false,
+    this.fetchApkInfo = true,
     this.apkLabel,
     this.apkIconPath,
     this.checkIntervalMinutes,
@@ -317,7 +317,8 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
         packageName: j['packageName'] as String?,
         moduleId: j['moduleId'] as String?,
         displayName: j['displayName'] as String?,
-        fetchApkInfo: j['fetchApkInfo'] as bool? ?? false,
+        // 旧配置缺省视为开启（默认打开；显式关闭会写入 false）
+        fetchApkInfo: j['fetchApkInfo'] as bool? ?? true,
         apkLabel: j['apkLabel'] as String?,
         apkIconPath: j['apkIconPath'] as String?,
         checkIntervalMinutes: j['checkIntervalMinutes'] as int?,
@@ -362,7 +363,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
         if (packageName != null) 'packageName': packageName,
         if (moduleId != null) 'moduleId': moduleId,
         if (displayName != null) 'displayName': displayName,
-        if (fetchApkInfo) 'fetchApkInfo': true,
+        if (!fetchApkInfo) 'fetchApkInfo': false, // 默认开启，仅显式关闭时写入
         if (apkLabel != null) 'apkLabel': apkLabel,
         if (apkIconPath != null) 'apkIconPath': apkIconPath,
         if (checkIntervalMinutes != null)

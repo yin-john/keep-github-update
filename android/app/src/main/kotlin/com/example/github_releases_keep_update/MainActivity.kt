@@ -45,6 +45,8 @@ class MainActivity : FlutterActivity() {
                     "selfPackageName" -> result.success(packageName)
                     // 读取 APK 的软件名称与图标（图标导出为 PNG）
                     "apkAppInfo" -> result.success(apkAppInfo(call.argument<String>("path")))
+                    // 读取已安装应用的软件名称、包名、版本与图标
+                    "installedAppInfo" -> result.success(installedAppInfo(call.argument<String>("package")))
                     // 常驻通知栏 + 后台保活（前台服务）
                     "startBackgroundService" -> result.success(
                         startBackgroundService(
@@ -253,6 +255,28 @@ class MainActivity : FlutterActivity() {
             // 未安装的 APK 需要显式指定路径，loadLabel / loadIcon 才能读到资源
             appInfo.sourceDir = path
             appInfo.publicSourceDir = path
+            val label = try {
+                appInfo.loadLabel(packageManager).toString()
+            } catch (e: Exception) {
+                info.packageName
+            }
+            mapOf(
+                "label" to label,
+                "iconPath" to saveApkIcon(appInfo, info.packageName),
+                "packageName" to info.packageName,
+                "version" to info.versionName
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** 读取已安装应用的软件名称、包名、版本与图标；图标导出为 PNG，返回其路径 */
+    private fun installedAppInfo(pkg: String?): Map<String, Any?>? {
+        if (pkg == null) return null
+        return try {
+            val info = packageManager.getPackageInfo(pkg, 0)
+            val appInfo = info.applicationInfo ?: return null
             val label = try {
                 appInfo.loadLabel(packageManager).toString()
             } catch (e: Exception) {

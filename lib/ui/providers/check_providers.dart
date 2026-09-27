@@ -124,6 +124,53 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
     }
   }
 
+  /// 从设备上已安装的应用提取名称/包名/版本/图标（落盘到下载目录）
+  Future<ApkAppInfo?> _extractInstalledAppInfo(RepoConfig r) async {
+    try {
+      final cfg = ref.read(configProvider);
+      final dir = repoDownloadDir(r.owner, r.repo, baseDir: cfg.downloadDir);
+      return await extractInstalledAppInfoIntoDir(
+          ref.read(androidEnvProvider), dir, r.packageName!);
+    } catch (e) {
+      AppLog.warn('从已安装应用提取名称/图标失败：$e');
+      return null;
+    }
+  }
+
+  /// Android：补全名称/图标等显示信息。
+  ///
+  /// 提取优先级：
+  /// 1. 本地已下载过 APK → 直接从 APK 提取（最准确）；
+  /// 2. **从未下载过**且已安装版本与仓库最新版本一致 → 从已安装的应用提取
+  ///    （避免「已装旧版但仓库已有新版」时提取到旧版信息）。
+  Future<void> _fillApkInfo(RepoConfig r, UpdateCheck c) async {
+    if (!r.fetchApkInfo || !r.isApkRepo) return;
+    final fresh = ref.read(configProvider.notifier).freshRepo(r);
+    if ((fresh.apkLabel?.isNotEmpty ?? false) &&
+        (fresh.apkIconPath?.isNotEmpty ?? false)) {
+      return; // 已有名称与图标
+    }
+    final dir = repoDownloadDir(r.owner, r.repo,
+        baseDir: ref.read(configProvider).downloadDir);
+    ApkAppInfo? info;
+    var fromDownload = false;
+    if (newestApkInDir(dir) != null) {
+      info = await _extractLocalApkInfo(r);
+      fromDownload = true;
+    } else if (fresh.downloadedVersion == null &&
+        c.match != null &&
+        c.hasUpdate == false &&
+        (c.installedVersion?.isNotEmpty ?? false) &&
+        (fresh.packageName?.isNotEmpty ?? false)) {
+      info = await _extractInstalledAppInfo(fresh);
+    }
+    if (info != null && info.isNotEmpty) {
+      _applyApkInfo(ref.read(configProvider), ref.read(configProvider.notifier),
+          r, info,
+          setDownloadedVersion: fromDownload);
+    }
+  }
+
   /// 依据设备上读到的版本反查并补全包名 / 模块 ID
   Future<void> _learnIdentity(RepoConfig r, String? tag) async {
     if ((r.packageName?.isNotEmpty ?? false) ||
@@ -164,16 +211,7 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
       };
       _persistAfterCheck(r, c, now);
       await _learnIdentity(r, c.installedVersion ?? r.lastInstalledTag);
-      // Android：本地已下载过 APK 且还没有名称/图标时，优先从本地提取
-      if (r.fetchApkInfo &&
-          r.isApkRepo &&
-          ((r.apkLabel?.isEmpty ?? true) || (r.apkIconPath?.isEmpty ?? true))) {
-        final info = await _extractLocalApkInfo(r);
-        if (info != null && info.isNotEmpty) {
-          _applyApkInfo(ref.read(configProvider),
-              ref.read(configProvider.notifier), r, info);
-        }
-      }
+      await _fillApkInfo(r, c);
       if (notify && c.hasUpdate && r.notificationsEnabled) {
         await ref.read(systemNotifierProvider).show(
             '${_displayName(r)} 有可用更新',
@@ -270,9 +308,11 @@ Future<ApkAppInfo?> fetchApkInfoForRepo(
 }
 
 /// 把提取到的名称/包名/版本/图标写入仓库配置
-/// [config] 为调用时的配置快照（StateNotifier.state 不能在外部访问）
+/// [config] 为调用时的配置快照（StateNotifier.state 不能在外部访问）；
+/// [setDownloadedVersion] 为假时不动已下载版本（信息来自已安装应用）
 void _applyApkInfo(
-    AppConfig config, ConfigNotifier notifier, RepoConfig r, ApkAppInfo info) {
+    AppConfig config, ConfigNotifier notifier, RepoConfig r, ApkAppInfo info,
+    {bool setDownloadedVersion = true}) {
   final cur = config.repos.firstWhere(
     (e) => e.fullName == r.fullName,
     orElse: () => r,
@@ -280,8 +320,10 @@ void _applyApkInfo(
   notifier.updateRepo(cur.copyWith(
     apkLabel: (info.label?.isNotEmpty ?? false) ? info.label : null,
     apkIconPath: (info.iconPath?.isNotEmpty ?? false) ? info.iconPath : null,
-    downloadedVersion:
-        (info.version?.isNotEmpty ?? false) ? info.version : null,
+    downloadedVersion: (setDownloadedVersion &&
+            (info.version?.isNotEmpty ?? false))
+        ? info.version
+        : null,
     // 自动补全包名（用于读取设备上的已装版本）；用户已配置时不覆盖
     packageName: ((r.packageName?.isEmpty ?? true) &&
             (info.packageName?.isNotEmpty ?? false))
