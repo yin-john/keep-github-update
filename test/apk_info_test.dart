@@ -68,7 +68,7 @@ void main() {
     });
 
     test('信息文本写入并解析回 Xposed 标记', () {
-      final info = const ApkAppInfo(
+      const info = ApkAppInfo(
           label: '模块A',
           packageName: 'com.example.mod',
           version: '1.0',
