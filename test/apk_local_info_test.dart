@@ -166,7 +166,7 @@ void main() {
     // 旧版结构化格式：有「名称:」但无 Xposed 行
     File(p.join(dir, apkNameFileName))
         .writeAsStringSync('名称: 旧缓存应用\n包名: com.old\n版本: 1.0\n');
-    final env = _FakeEnv(const ApkAppInfo(
+    final env = _FakeEnv(ApkAppInfo(
       label: '重提取应用',
       packageName: 'com.new',
       iconPath: srcIcon.path,
