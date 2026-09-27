@@ -166,7 +166,8 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
           ((r.apkLabel?.isEmpty ?? true) || (r.apkIconPath?.isEmpty ?? true))) {
         final info = await _extractLocalApkInfo(r);
         if (info != null && info.isNotEmpty) {
-          _applyApkInfo(ref.read(configProvider.notifier), r, info);
+          _applyApkInfo(ref.read(configProvider),
+              ref.read(configProvider.notifier), r, info);
         }
       }
       if (notify && c.hasUpdate && r.notificationsEnabled) {
@@ -253,7 +254,8 @@ Future<ApkAppInfo?> fetchApkInfoForRepo(
           '${apkPath == null ? '（下载目录中没有可用的 APK）' : ''}');
       return null;
     }
-    _applyApkInfo(ref.read(configProvider.notifier), r, info);
+    _applyApkInfo(ref.read(configProvider), ref.read(configProvider.notifier),
+        r, info);
     AppLog.info('已获取 ${r.fullName} 的 APK 信息：${info.label ?? '(无名称)'}'
         '${info.iconPath == null ? '' : ' · 图标 ${info.iconPath}'}');
     return info;
@@ -264,8 +266,10 @@ Future<ApkAppInfo?> fetchApkInfoForRepo(
 }
 
 /// 把提取到的名称/包名/版本/图标写入仓库配置
-void _applyApkInfo(ConfigNotifier notifier, RepoConfig r, ApkAppInfo info) {
-  final cur = notifier.state.repos.firstWhere(
+/// [config] 为调用时的配置快照（StateNotifier.state 不能在外部访问）
+void _applyApkInfo(
+    AppConfig config, ConfigNotifier notifier, RepoConfig r, ApkAppInfo info) {
+  final cur = config.repos.firstWhere(
     (e) => e.fullName == r.fullName,
     orElse: () => r,
   );

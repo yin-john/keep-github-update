@@ -71,7 +71,7 @@ void main() {
         'checkIntervalMinutes: 30\nbackgroundKeepAlive: true\n'
         'repos:\n  - id: o/r\n    owner: o\n    repo: r\n'
         '    assetRules:\n      - platform: windows\n'
-        '        strategy: portable\n        nameRegex: ".*\\\\.zip$"\n');
+        '        strategy: portable\n        nameRegex: ".*\\\\.zip\$"\n');
 
     final cfg = await repo.load();
 

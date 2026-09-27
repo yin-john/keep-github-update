@@ -40,7 +40,7 @@ void main() {
     Directory(dir).createSync(recursive: true);
     final srcIcon = File(p.join(tmp.path, 'src.png'))
       ..writeAsBytesSync([1, 2, 3, 4]);
-    final env = _FakeEnv(const ApkAppInfo(
+    final env = _FakeEnv(ApkAppInfo(
       label: '示例应用',
       packageName: 'com.example.app',
       version: '1.2.3',
@@ -97,7 +97,7 @@ void main() {
       ..setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 1)));
     final srcIcon = File(p.join(tmp.path, 'src.png'))
       ..writeAsBytesSync([7, 7]);
-    final env = _FakeEnv(const ApkAppInfo(
+    final env = _FakeEnv(ApkAppInfo(
       label: '示例应用',
       packageName: 'com.example.app',
       version: '1.2.3',
@@ -119,7 +119,7 @@ void main() {
     Directory(dir).createSync(recursive: true);
     final srcIcon = File(p.join(tmp.path, 'src.png'))
       ..writeAsBytesSync([7, 7]);
-    final env = _FakeEnv(const ApkAppInfo(label: '示例应用', iconPath: srcIcon.path));
+    final env = _FakeEnv(ApkAppInfo(label: '示例应用', iconPath: srcIcon.path));
 
     final apk = apkIn(dir, 'app-1.0.0.apk');
     await extractApkInfoIntoDir(env, dir, apkPath: apk.path);

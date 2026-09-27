@@ -59,7 +59,7 @@ void main() {
         'configVersion: 1\nwebhook:\n  enabled: false\n  url: ""\n  events: []\n'
         'repos:\n  - id: a/b\n    owner: a\n    repo: b\n'
         '    assetRules:\n      - platform: android\n'
-        '        strategy: apk\n        nameRegex: ".*\\\\.apk$"\n');
+        '        strategy: apk\n        nameRegex: ".*\\\\.apk\$"\n');
     final cfg = await ConfigRepository(path).load();
     expect(cfg.configVersion, currentConfigVersion);
     expect(cfg.repos.single.fullName, 'a/b');
