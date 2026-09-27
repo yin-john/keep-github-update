@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:github_releases_keep_update/core/config/config_repository.dart';
 import 'package:github_releases_keep_update/core/config/models.dart';
 
+import 'support/fs.dart';
+
 AppConfig _sample() => const AppConfig(
       githubToken: 'token123',
       mirrors: [
@@ -44,7 +46,7 @@ void main() {
     expect(loaded.mirrors.length, 1);
     expect(loaded.repos.first.lastInstalledTag, 'v1.0.0');
     expect(loaded.webhook.url, 'https://hook.example.com');
-    await dir.delete(recursive: true);
+    await deleteDirQuietly(dir);
   });
 
   test('JSON 导入导出往返一致', () async {
@@ -55,7 +57,7 @@ void main() {
     final loaded = await repo.load();
     expect(loaded.repos.length, 1);
     expect(loaded.webhook.events.length, 2);
-    await dir.delete(recursive: true);
+    await deleteDirQuietly(dir);
   });
 
   test('validate 捕获非法正则与空规则', () async {

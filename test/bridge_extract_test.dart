@@ -6,6 +6,8 @@ import 'package:github_releases_keep_update/core/config/models.dart';
 import 'package:github_releases_keep_update/core/config/rule_presets.dart';
 import 'package:github_releases_keep_update/core/platform/bridge.dart';
 
+import 'support/fs.dart';
+
 List<int> _zip() {
   final a = Archive();
   a.addFile(ArchiveFile('app.exe', 3, [1, 2, 3]));
@@ -16,9 +18,7 @@ List<int> _zip() {
 void main() {
   late Directory tmp;
   setUp(() => tmp = Directory.systemTemp.createTempSync('grku_zip_'));
-  tearDown(() {
-    if (tmp.existsSync()) tmp.deleteSync(recursive: true);
-  });
+  tearDown(() => deleteDirQuietly(tmp));
 
   test('默认：清空安装目录后解压', () async {
     final zipPath = '${tmp.path}/a.zip';

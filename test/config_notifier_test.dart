@@ -7,6 +7,8 @@ import 'package:github_releases_keep_update/core/config/config_repository.dart';
 import 'package:github_releases_keep_update/core/config/models.dart';
 import 'package:github_releases_keep_update/ui/providers/app_providers.dart';
 
+import 'support/fs.dart';
+
 RepoConfig _repo(String owner, String name) => RepoConfig(
       id: '$owner/$name',
       owner: owner,
@@ -32,9 +34,9 @@ void main() {
     ]);
   });
 
-  tearDown(() {
+  tearDown(() async {
     container.dispose();
-    if (tmp.existsSync()) tmp.deleteSync(recursive: true);
+    await deleteDirQuietly(tmp);
   });
 
   test('添加仓库：更新状态并写入文件', () async {

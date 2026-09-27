@@ -14,6 +14,7 @@ import 'package:github_releases_keep_update/core/updater/update_service.dart';
 import 'package:github_releases_keep_update/core/updater/updater.dart';
 import 'package:github_releases_keep_update/core/version/installed_version.dart';
 
+import 'support/fs.dart';
 import 'support/test_server.dart';
 
 class _FakeApi extends GitHubApiClient {
@@ -105,12 +106,13 @@ void main() {
   // flutter_test 默认拦截真实网络，这里需要访问本地 HTTP 服务器
   setUpAll(() => HttpOverrides.global = null);
   setUp(() => tmp = Directory.systemTemp.createTempSync('grku_up_'));
-  tearDown(() {
+  tearDown(() async {
     for (final m in _managers) {
       m.dio.close(force: true);
     }
     _managers.clear();
-    if (tmp.existsSync()) tmp.deleteSync(recursive: true);
+    // Windows 上被取消的下载可能仍持有文件句柄，容错清理
+    await deleteDirQuietly(tmp);
   });
 
   test('更新全流程：检测 → 下载 → 应用 → 写入版本文件', () async {

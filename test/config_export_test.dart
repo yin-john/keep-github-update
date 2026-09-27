@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:github_releases_keep_update/core/config/config_repository.dart';
 import 'package:github_releases_keep_update/core/config/models.dart';
 
+import 'support/fs.dart';
+
 AppConfig _cfg({List<RepoConfig> repos = const []}) => AppConfig(
       webhook: const WebhookConfig(enabled: false, url: '', events: []),
       repos: repos,
@@ -27,9 +29,7 @@ const RepoConfig _androidRepo = RepoConfig(
 void main() {
   late Directory dir;
   setUp(() => dir = Directory.systemTemp.createTempSync('grku_export_'));
-  tearDown(() {
-    if (dir.existsSync()) dir.deleteSync(recursive: true);
-  });
+  tearDown(() => deleteDirQuietly(dir));
 
   test('保存的配置带版本号与 Android 字段', () async {
     final path = '${dir.path}/config.yaml';

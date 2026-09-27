@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:github_releases_keep_update/core/download/download_manager.dart';
 
+import 'support/fs.dart';
 import 'support/test_server.dart';
 
 void main() {
@@ -23,13 +24,13 @@ void main() {
   // flutter_test 默认拦截真实网络，这里需要访问本地 HTTP 服务器
   setUpAll(() => HttpOverrides.global = null);
   setUp(() => dir = Directory.systemTemp.createTempSync('grku_dl_'));
-  tearDown(() {
+  tearDown(() async {
     // 释放 HTTP 连接，避免测试套件退出时挂起
     for (final m in managers) {
       m.dio.close(force: true);
     }
     managers.clear();
-    if (dir.existsSync()) dir.deleteSync(recursive: true);
+    await deleteDirQuietly(dir);
   });
 
   test('单线程：下载完整并校验通过', () async {
