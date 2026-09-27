@@ -5,6 +5,7 @@ library;
 import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
+import '../config/app_paths.dart';
 import '../config/models.dart';
 import '../version/installed_version.dart';
 
@@ -223,6 +224,11 @@ class DefaultPlatformBridge implements PlatformBridge {
   Future<void> uninstallApk(String packageName, {bool keepData = true}) async {
     if (!Platform.isAndroid) {
       throw Exception('仅 Android 支持卸载应用');
+    }
+    // 安全护栏：任何情况下都不允许卸载本应用自身，
+    // 否则「自己更新自己」时会把正在运行的应用直接删掉，且无法再安装回来。
+    if (packageName.trim().toLowerCase() == androidPackageId.toLowerCase()) {
+      throw Exception('拒绝卸载本应用自身（$packageName）');
     }
     // -k 保留 /data/data/<pkg>，重装（即使签名不同）后数据仍在
     final cmd = keepData

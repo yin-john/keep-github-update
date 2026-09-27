@@ -37,6 +37,8 @@ class MainActivity : FlutterActivity() {
                     "apkPackageName" -> result.success(apkPackageName(call.argument<String>("path")))
                     "installedSignature" -> result.success(installedSignature(call.argument<String>("package")))
                     "installedVersion" -> result.success(installedVersion(call.argument<String>("package")))
+                    // 自身包名（applicationId）：用于识别「自己更新自己」，避免误卸载自身
+                    "selfPackageName" -> result.success(packageName)
                     "installWithSystem" -> result.success(installWithSystem(call.argument<String>("path")))
                     "filesDir" -> result.success(filesDir.absolutePath)
                     "externalFilesDir" -> result.success(getExternalFilesDir(null)?.absolutePath)

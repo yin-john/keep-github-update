@@ -1,6 +1,7 @@
 /// Android 更新器：Magisk/KernelSU 模块刷入 + APK 安装（安装前校验签名一致性）
 library;
 
+import '../core/config/app_paths.dart';
 import '../core/config/models.dart';
 import '../core/github/release_model.dart';
 import '../core/log/app_log.dart';
@@ -46,10 +47,14 @@ class AndroidUpdater implements Updater {
     }
   }
 
-  /// 安装前校验签名：不一致时按配置拒绝安装，或（强制模式）先卸载再装
+  /// 安装前校验签名：不一致时按配置拒绝安装，或（强制模式）先卸载再装。
+  ///
+  /// 若目标就是本应用自身（自更新），**任何情况下都不会卸载自己**：
+  /// 卸载自身会让运行中的应用立刻消失，安装也无从继续。
   Future<void> _installApk(RepoConfig repo, String apkPath) async {
     final method = repo.apkInstallMethod ?? defaultMethod;
     final e = env;
+    var isSelf = false;
     if (e != null && e.isAndroid) {
       final configured = repo.packageName;
       final pkg = (configured != null && configured.isNotEmpty)
@@ -58,6 +63,7 @@ class AndroidUpdater implements Updater {
       if (pkg.isEmpty) {
         AppLog.warn('无法确定目标包名，跳过签名校验（由系统在安装时校验）');
       } else {
+        isSelf = _isSelfPackage(pkg, await e.selfPackageName());
         final installedSig = await e.installedSignature(pkg);
         final apkSig = await e.apkSignature(apkPath);
         final verdict = evaluateApkSignature(
@@ -65,18 +71,27 @@ class AndroidUpdater implements Updater {
           installedSignature: installedSig,
           apkSignature: apkSig,
         );
-        AppLog.info('签名校验 $pkg → ${verdict.name}');
-        if (!canProceedWithInstall(verdict,
-            ignoreSignature: ignoreSignature)) {
-          throw Exception(signatureVerdictMessage(verdict, packageName: pkg));
+        AppLog.info('签名校验 $pkg → ${verdict.name}${isSelf ? '（本应用自身）' : ''}');
+        final action = planApkInstall(
+          verdict: verdict,
+          ignoreSignature: ignoreSignature,
+          isSelf: isSelf,
+        );
+        if (action == ApkInstallAction.reject) {
+          throw Exception(signatureVerdictMessage(verdict,
+              packageName: pkg, isSelf: isSelf));
         }
-        if (needsUninstallFirst(verdict, ignoreSignature: ignoreSignature) &&
+        if (action == ApkInstallAction.uninstallThenInstall &&
             method != InstallMethod.normal) {
-          // 用 -k 卸载：保留应用数据，重装后仍可用
+          // 用 -k 卸载：保留应用数据，重装后仍可用（仅非自身应用）
           AppLog.warn('签名不一致，按设置强制安装：先卸载 $pkg（保留应用数据）');
           await bridge.uninstallApk(pkg, keepData: true);
         }
       }
+    }
+
+    if (isSelf) {
+      AppLog.warn('正在安装本应用自身，系统会在安装过程中关闭本应用，完成后请重新打开');
     }
 
     if (method == InstallMethod.normal) {
@@ -89,5 +104,13 @@ class AndroidUpdater implements Updater {
       return;
     }
     await bridge.installApk(apkPath, method: method);
+  }
+
+  /// 目标包名是否为本应用自身（原生读不到时回退到编译期常量）
+  static bool _isSelfPackage(String pkg, String? selfPkg) {
+    final self = (selfPkg == null || selfPkg.trim().isEmpty)
+        ? androidPackageId
+        : selfPkg.trim();
+    return pkg.trim().toLowerCase() == self.toLowerCase();
   }
 }

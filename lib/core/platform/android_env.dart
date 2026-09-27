@@ -50,6 +50,10 @@ abstract class AndroidEnv {
   /// 已安装应用的 versionName，读不到返回 null
   Future<String?> installedAppVersion(String packageName);
 
+  /// 本应用自身的包名（applicationId）。
+  /// 用于识别「自己更新自己」——此时绝不能卸载目标包；读不到返回 null。
+  Future<String?> selfPackageName();
+
   /// 用系统安装器安装 APK（普通安装，需用户手动确认）
   Future<bool> installWithSystem(String path);
 
@@ -120,6 +124,10 @@ class ShellAndroidEnv extends AndroidEnv {
     final m = RegExp(r'^\s*versionName=(\S+)', multiLine: true).firstMatch(out);
     return m?.group(1);
   }
+
+  /// CLI 场景下拿不到自身包名，交由调用方回退到常量
+  @override
+  Future<String?> selfPackageName() async => null;
 
   @override
   Future<bool> installWithSystem(String path) async => false;

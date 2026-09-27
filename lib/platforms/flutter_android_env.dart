@@ -65,6 +65,10 @@ class FlutterAndroidEnv extends AndroidEnv {
       await _invoke<String>('installedVersion', {'package': packageName});
 
   @override
+  Future<String?> selfPackageName() async =>
+      await _invoke<String>('selfPackageName');
+
+  @override
   Future<bool> installWithSystem(String path) async =>
       await _invoke<bool>('installWithSystem', {'path': path}) ?? false;
 
