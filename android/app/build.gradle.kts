@@ -1,8 +1,35 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// ————————————————— 发布签名配置 —————————————————
+// 密钥不在仓库里，按以下顺序读取：
+//   1. 环境变量（CI 用 GitHub Secrets 注入；本地也可临时设置）
+//   2. android/keystore.properties（本地自用，已被 .gitignore 排除）
+// 两者都没有时回退 debug 签名，保证任何环境都能构建出包（便于 PR / 贡献者）。
+//   环境变量：GRKU_KEYSTORE_PATH / GRKU_KEYSTORE_PASSWORD / GRKU_KEY_ALIAS / GRKU_KEY_PASSWORD
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun signingValue(envKey: String, propKey: String): String? =
+    System.getenv(envKey)?.takeIf { it.isNotBlank() }
+        ?: keystoreProps.getProperty(propKey)?.takeIf { it.isNotBlank() }
+
+val releaseStorePath = signingValue("GRKU_KEYSTORE_PATH", "storeFile")
+val releaseStorePassword = signingValue("GRKU_KEYSTORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("GRKU_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("GRKU_KEY_PASSWORD", "keyPassword")
+val hasReleaseKeystore = releaseStorePath != null &&
+        File(releaseStorePath).exists() &&
+        releaseStorePassword != null &&
+        releaseKeyAlias != null &&
+        releaseKeyPassword != null
 
 android {
     namespace = "com.example.github_releases_keep_update"
@@ -31,11 +58,29 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = File(releaseStorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                // minSdk 24 下 v2 签名为默认且必需（实测 v2=true）；
+                // v1 是否生效由 AGP 按 minSdk 决定，这里显式声明以便将来降低 minSdk
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                // 未提供密钥时（本地/PR）回退 debug 签名，避免构建失败
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

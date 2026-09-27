@@ -7,8 +7,21 @@ import '../core/config/config_repository.dart';
 import '../core/config/models.dart';
 import '../core/log/app_log.dart';
 import '../core/updater/update_service.dart';
+import '../core/version/app_version.dart';
 import 'app_context.dart';
 import '../tui/tui_app.dart';
+
+/// 版本号输出行（供 --version / version 共用）
+String versionLine() => 'grku $appVersion';
+
+class VersionCommand extends Command<void> {
+  @override
+  final name = 'version';
+  @override
+  final description = '打印版本号';
+  @override
+  Future<void> run() async => print(versionLine());
+}
 
 String _progress(int received, int total) {
   if (total <= 0) return '下载中 ${(received / 1024).toStringAsFixed(0)} KB';
@@ -18,7 +31,8 @@ String _progress(int received, int total) {
 
 class GrkuCommandRunner extends CommandRunner<void> {
   GrkuCommandRunner(String configPath)
-      : super('grku', 'GitHub Release 自动下载更新工具') {
+      : super('grku', 'GitHub Release 自动下载更新工具 v$appVersion') {
+    addCommand(VersionCommand());
     addCommand(ListCommand(configPath));
     addCommand(CheckCommand(configPath));
     addCommand(UpdateCommand(configPath));
@@ -28,6 +42,18 @@ class GrkuCommandRunner extends CommandRunner<void> {
     addCommand(ConfigCommand(configPath));
     addCommand(NotifyCommand(configPath));
     addCommand(TuiCommand(configPath));
+  }
+
+  /// 顶层支持 `grku --version` / `grku -V`（等价于 `grku version`）
+  @override
+  Future<void> run(Iterable<String> args) async {
+    final list = args.toList();
+    if (list.length == 1 &&
+        (list.first == '--version' || list.first == '-V')) {
+      print(versionLine());
+      return;
+    }
+    await super.run(args);
   }
 }
 
