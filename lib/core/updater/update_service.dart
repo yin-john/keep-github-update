@@ -234,13 +234,17 @@ class UpdateService {
     return results;
   }
 
-  /// 执行更新：下载并应用；dryRun 仅下载不应用；[cancelToken] 可中断下载
+  /// 执行更新：下载并应用；dryRun 仅下载不应用；[cancelToken] 可中断下载。
+  ///
+  /// [onDownloaded] 在**下载完成、安装之前**回调（dryRun 也会触发），
+  /// 用于在安装前/安装失败时也能提取 APK 信息（名称/图标/包名/版本）。
   Future<File> update(
     UpdateCheck c, {
     String? downloadDir,
     ProgressCallback? onProgress,
     bool dryRun = false,
     CancelToken? cancelToken,
+    Future<void> Function(File file)? onDownloaded,
   }) async {
     if (!c.hasUpdate || c.match == null) {
       throw Exception('没有可更新的内容');
@@ -283,6 +287,14 @@ class UpdateService {
           expectedChecksum: expectedChecksum,
           checksumType: rule.checksumType,
           cancelToken: cancelToken);
+      // 下载完成即回调（安装前）：回调内部自行兜底，不应影响后续安装
+      if (onDownloaded != null) {
+        try {
+          await onDownloaded(file);
+        } catch (e) {
+          AppLog.warn('onDownloaded 回调失败（忽略）: $e');
+        }
+      }
       if (!dryRun) {
         if (cancelToken?.isCancelled ?? false) throw DownloadCancelled();
         final updater = updaters.firstWhere(

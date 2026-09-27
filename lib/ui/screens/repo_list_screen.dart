@@ -307,7 +307,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       var lastRc = 0;
       var lastAt = DateTime.now();
       var speed = 0.0;
-      final file = await svc.update(c, cancelToken: token, onProgress: (rc, t) {
+      await svc.update(c, cancelToken: token, onProgress: (rc, t) {
         final now = DateTime.now();
         final ms = now.difference(lastAt).inMilliseconds;
         if (ms >= 400 || (t > 0 && rc >= t)) {
@@ -320,12 +320,13 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
           downloads.progress(r.fullName,
               progress: ratio, speed: speed, status: '下载中');
         }
-      });
+      },
+          // 下载完成（安装前）即提取 APK 名称/图标/包名/版本（落盘到下载目录）
+          onDownloaded: (file) =>
+              fetchApkInfoForRepo(ref, r, apkPath: file.path));
       ref
           .read(configProvider.notifier)
           .updateRepo(r.copyWith(lastInstalledTag: c.release.tagName));
-      // Android：按需从下载到的 APK 读取图标与软件名称（落盘到下载目录）
-      await fetchApkInfoForRepo(ref, r, apkPath: file.path);
       // 更新后设备上的版本即 tag，据此反查补全包名/模块 ID
       await _checker.learnIdentityFor(r, c.release.tagName);
       _setStatus(r.fullName, '完成 → ${c.release.tagName}',
