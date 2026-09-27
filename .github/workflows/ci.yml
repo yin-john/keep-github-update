@@ -94,6 +94,9 @@ jobs:
     runs-on: ubuntu-24.04
     needs: test
     timeout-minutes: 60
+    # 签名信息放在 Environment secrets 里，必须声明同名 environment 才能读到；
+    # 若你把它们改成了 Repository secrets，删掉这行即可。
+    environment: compile-Android
     env:
       # 发布签名：在仓库 Settings → Secrets and variables → Actions 中配置
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -126,6 +129,18 @@ jobs:
       - name: 拉取依赖
         run: flutter pub get
 
+      - name: 检查签名用的 Secrets 是否可见（只打印有无，不打印内容）
+        run: |
+          echo "（Environment secrets 需与 job 声明的 environment 同名，当前为 compile-Android）"
+          for kv in \
+            "ANDROID_KEYSTORE_BASE64:${ANDROID_KEYSTORE_BASE64}" \
+            "ANDROID_KEYSTORE_PASSWORD:${GRKU_KEYSTORE_PASSWORD}" \
+            "ANDROID_KEY_ALIAS:${GRKU_KEY_ALIAS}" \
+            "ANDROID_KEY_PASSWORD:${GRKU_KEY_PASSWORD}"; do
+            k="${kv%%:*}"; v="${kv#*:}"
+            if [ -n "$v" ]; then echo "  $k = 已配置"; else echo "  $k = 未配置"; fi
+          done
+
       - name: 准备发布签名（从 Secrets 解码密钥）
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         run: |
@@ -139,7 +154,10 @@ jobs:
 
       - name: 未配置签名密钥（将使用 debug 签名，仅用于验证构建）
         if: env.ANDROID_KEYSTORE_BASE64 == ''
-        run: echo "::warning::未配置 ANDROID_KEYSTORE_BASE64，本次 APK 使用 debug 签名"
+        run: |
+          echo "::warning::未读取到 ANDROID_KEYSTORE_BASE64，本次 APK 使用 debug 签名"
+          echo "排查：若密钥放在 Environment secrets，本 job 必须声明同名 environment（当前为 compile-Android）；"
+          echo "      若放在 Repository secrets，请删除 job 里的 environment 声明。"
 
       - name: 构建分 ABI 包（arm32 / arm64 / x86_64）
         run: flutter build apk --release --split-per-abi
@@ -181,6 +199,8 @@ jobs:
     # 只在 main 分支（或手动触发）发布，PR 不发布
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     timeout-minutes: 20
+    # 与 build-android 一致：需要读取环境级 secret 判断是否具备发布条件
+    environment: compile-Android
     permissions:
       contents: write
     steps:
