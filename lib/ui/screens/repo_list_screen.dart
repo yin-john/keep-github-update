@@ -324,8 +324,8 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       ref
           .read(configProvider.notifier)
           .updateRepo(r.copyWith(lastInstalledTag: c.release.tagName));
-      // Android：按需从下载到的 APK 读取图标与软件名称
-      await fetchApkInfoForRepo(ref, r, file.path);
+      // Android：按需从下载到的 APK 读取图标与软件名称（落盘到下载目录）
+      await fetchApkInfoForRepo(ref, r, apkPath: file.path);
       // 更新后设备上的版本即 tag，据此反查补全包名/模块 ID
       await _checker.learnIdentityFor(r, c.release.tagName);
       _setStatus(r.fullName, '完成 → ${c.release.tagName}',
@@ -367,7 +367,7 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
       ref
           .read(configProvider.notifier)
           .updateRepo(r.copyWith(lastInstalledTag: c.release.tagName));
-      await fetchApkInfoForRepo(ref, r, file.path);
+      await fetchApkInfoForRepo(ref, r, apkPath: file.path);
       _setStatus(r.fullName, '重试安装成功 → ${c.release.tagName}',
           hasUpdate: false, canRetryInstall: false);
       downloads.finish(r.fullName, '重试安装成功');

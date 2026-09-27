@@ -260,7 +260,9 @@ class MainActivity : FlutterActivity() {
             }
             mapOf(
                 "label" to label,
-                "iconPath" to saveApkIcon(appInfo, info.packageName)
+                "iconPath" to saveApkIcon(appInfo, info.packageName),
+                "packageName" to info.packageName,
+                "version" to info.versionName
             )
         } catch (e: Exception) {
             null

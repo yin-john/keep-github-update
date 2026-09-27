@@ -289,6 +289,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
     this.apkIconPath,
     this.checkIntervalMinutes,
     this.lastCheckedAt,
+    this.downloadedVersion,
   });
 
   factory RepoConfig.fromJson(Map<String, dynamic> j) => RepoConfig(
@@ -321,6 +322,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
         apkIconPath: j['apkIconPath'] as String?,
         checkIntervalMinutes: j['checkIntervalMinutes'] as int?,
         lastCheckedAt: j['lastCheckedAt'] as String?,
+        downloadedVersion: j['downloadedVersion'] as String?,
       );
   final String id;
   final String owner;
@@ -342,6 +344,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
   final String? apkIconPath; // 自动获取到的图标文件（PNG）绝对路径
   final int? checkIntervalMinutes; // 单独设置检测间隔（分钟）；null 用全局设置
   final String? lastCheckedAt; // 上次检测时间（ISO8601，供间隔调度判断）
+  final String? downloadedVersion; // 本地已下载 APK 的版本（versionName）
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -365,6 +368,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
         if (checkIntervalMinutes != null)
           'checkIntervalMinutes': checkIntervalMinutes,
         if (lastCheckedAt != null) 'lastCheckedAt': lastCheckedAt,
+        if (downloadedVersion != null) 'downloadedVersion': downloadedVersion,
       };
 
   RepoConfig copyWith({
@@ -388,6 +392,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
     String? apkIconPath,
     int? checkIntervalMinutes,
     String? lastCheckedAt,
+    String? downloadedVersion,
   }) =>
       RepoConfig(
         id: id ?? this.id,
@@ -410,6 +415,7 @@ class RepoConfig { // Android 模块：Magisk/KernelSU 模块 ID（留空则自�
         apkIconPath: apkIconPath ?? this.apkIconPath,
         checkIntervalMinutes: checkIntervalMinutes ?? this.checkIntervalMinutes,
         lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
+        downloadedVersion: downloadedVersion ?? this.downloadedVersion,
       );
 
   String get fullName => '$owner/$repo';
@@ -517,8 +523,10 @@ class WebhookConfig {
 
 /// 当前配置文件格式版本
 ///
-/// 1 → 2：新增检测间隔/后台保活（全局）与显示名称、APK 图标名称、仓库级检测间隔（仓库）
-const int currentConfigVersion = 2;
+/// - 1 → 2：新增检测间隔/后台保活（全局）与显示名称、APK 图标名称、仓库级检测间隔
+/// - 2 → 4：软件配置与仓库配置拆分为两个文件（config.yaml + repos.yaml），
+///   旧版单文件配置在启动时自动检测并转换（原文件备份为 `*.bak`）
+const int currentConfigVersion = 4;
 
 /// 全局默认检测间隔（分钟）：6 小时
 const int defaultCheckIntervalMinutes = 360;

@@ -32,5 +32,17 @@ void main() {
       final info = ApkAppInfo.fromChannel({'label': 123});
       expect(info.label, '123');
     });
+
+    test('解析包名与版本（原生 apkAppInfo 返回）', () {
+      final info = ApkAppInfo.fromChannel({
+        'label': '示例应用',
+        'packageName': 'com.example.app',
+        'version': '1.2.3',
+        'iconPath': '/tmp/a.png',
+      });
+      expect(info.packageName, 'com.example.app');
+      expect(info.version, '1.2.3');
+      expect(info.isNotEmpty, isTrue);
+    });
   });
 }

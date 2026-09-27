@@ -107,7 +107,9 @@ class RepoCard extends StatelessWidget { // 非空则显示「重试安装」（
                     tooltip: '删除'),
               ],
             ),
-            _kv('已装版本', repo.lastInstalledTag ?? '未安装'),
+            if (repo.isApkRepo || (repo.downloadedVersion?.isNotEmpty ?? false))
+              _kv('已下载版本', repo.downloadedVersion ?? '未下载'),
+            _kv('已安装版本', repo.lastInstalledTag ?? '未安装'),
             _kv('仓库最新版本', latestTag ?? '未检测'),
             if (status != null)
               Padding(

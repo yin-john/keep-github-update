@@ -2,7 +2,7 @@
 # Windows: %APPDATA%\github_releases_keep_update\config.yaml
 # Linux:   ~/.config/github_releases_keep_update/config.yaml
 # 可用 `grku config import example_config.yaml` 导入
-configVersion: 2         # 配置格式版本（旧配置缺省按 1 处理，加载时自动补齐 v2 字段）
+configVersion: 4         # 配置格式版本（导入文件为「软件配置 + 仓库配置」合并格式；旧版本自动转换）
 githubToken: ""          # 可选；留空则用匿名 API（60 次/小时）或直链模式
 systemNotificationsEnabled: true
 downloadDir: ""          # 留空用默认目录；Android 默认在公共存储 <外部存储>/grku/downloads（需存储权限）
