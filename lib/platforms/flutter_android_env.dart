@@ -83,6 +83,10 @@ class FlutterAndroidEnv extends AndroidEnv {
       await _invoke<bool>('launchApp', {'package': packageName}) ?? false;
 
   @override
+  Future<bool> isAppLaunchable(String packageName) async =>
+      await _invoke<bool>('isLaunchable', {'package': packageName}) ?? true;
+
+  @override
   Future<bool> openUrl(String url) async =>
       await _invoke<bool>('openUrl', {'url': url}) ?? false;
 

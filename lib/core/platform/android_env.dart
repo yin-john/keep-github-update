@@ -68,6 +68,10 @@ abstract class AndroidEnv {
   /// 界面（LSPosed 管理器），失败回退直接打开应用。失败返回 false。
   Future<bool> launchApp(String packageName);
 
+  /// 已安装应用是否有启动入口（Launcher activity）。
+  /// XP 模块即使无启动入口也视为可启动（可尝试经 LSPosed 管理器打开）。
+  Future<bool> isAppLaunchable(String packageName);
+
   /// 用系统浏览器打开 URL（Android 原生 intent）。失败返回 false。
   Future<bool> openUrl(String url);
 
@@ -168,6 +172,13 @@ class ShellAndroidEnv extends AndroidEnv {
 
   @override
   Future<bool> launchApp(String packageName) async => false;
+
+  @override
+  Future<bool> isAppLaunchable(String packageName) async {
+    if (!Platform.isAndroid) return false;
+    // shell 环境无法可靠判定，按可启动处理（点击失败有提示兜底）
+    return true;
+  }
 
   @override
   Future<bool> openUrl(String url) async => false;
