@@ -20,6 +20,16 @@ void main() async {
     } catch (_) {
       // 解析失败时退回默认推导路径
     }
+    // 配置文件与 logs/ 放同一父目录（公共存储 <外部存储>/grku/）；
+    // 无「所有文件访问」权限时自动回退应用私有目录
+    try {
+      setConfigPathOverride(resolveAndroidConfigPath(
+        publicRoot: androidPublicRoot(),
+        privateConfigPath: fallbackConfigPath(),
+      ));
+    } catch (_) {
+      // 探测失败时保持默认推导路径
+    }
     AppLog.refreshPaths(); // 日志路径随之更新（优先公共目录）
   }
   final system = await FlutterSystemNotifier.init();
