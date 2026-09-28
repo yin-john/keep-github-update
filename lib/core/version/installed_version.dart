@@ -63,6 +63,17 @@ bool versionMatches(String? installed, String? tag) {
   return compareVersions(installed, tag) == 0;
 }
 
+/// 已安装版本与 release tag 是否同一版本，兼容 LSPosed 模块仓库的
+/// `<versionCode>-<versionName>` tag 格式（如 tag `20950-1.3.4`，
+/// 应用 versionName 只有 `1.3.4`）——取最后一个 `-` 之后的片段再比对。
+bool versionMatchesTag(String? installed, String? tag) {
+  if (versionMatches(installed, tag)) return true;
+  final t = tag ?? '';
+  final dash = t.lastIndexOf('-');
+  if (dash <= 0 || dash >= t.length - 1) return false;
+  return versionMatches(installed, t.substring(dash + 1));
+}
+
 /// tag 是否比已安装版本更新
 bool versionIsNewer(String? tag, String? installed) {
   if (installed == null || installed.isEmpty) return true;
@@ -179,7 +190,8 @@ String? guessPackageName(
 }) {
   if (installedTag == null || installedTag.isEmpty) return null;
   final hits = versions.entries
-      .where((e) => e.key != exclude && versionMatches(e.value, installedTag))
+      .where(
+          (e) => e.key != exclude && versionMatchesTag(e.value, installedTag))
       .toList();
   return hits.length == 1 ? hits.first.key : null;
 }

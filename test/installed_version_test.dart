@@ -129,6 +129,39 @@ Packages:
       expect(guessPackageName(m, installedTag: 'v9.9.9'), isNull);
       expect(guessPackageName(m, installedTag: null), isNull);
     });
+
+    test('LSPosed 模块 tag（versionCode-versionName）也能反查包名', () {
+      // Xposed-Modules-Repo 的 tag 形如 <versionCode>-<versionName>，
+      // 应用实际 versionName 只有 1.2.3
+      final m = parsePackageVersions(dump);
+      expect(guessPackageName(m, installedTag: '20950-1.2.3'),
+          'com.example.app');
+      expect(guessPackageName(m, installedTag: '20950-9.9.9'), isNull);
+    });
+  });
+
+  group('versionMatchesTag（tag 变体匹配）', () {
+    test('常规 tag 保持 versionMatches 行为', () {
+      expect(versionMatchesTag('1.2.3', 'v1.2.3'), isTrue);
+      expect(versionMatchesTag('1.2.0', '1.2'), isTrue);
+      expect(versionMatchesTag('1.2.3', '1.2'), isFalse);
+      expect(versionMatchesTag('1.2.3', 'v1.2.3-beta'), isTrue);
+      expect(versionMatchesTag('1.2.3', 'v1.2.4'), isFalse);
+      expect(versionMatchesTag(null, 'v1.2.3'), isFalse);
+      expect(versionMatchesTag('1.2.3', null), isFalse);
+    });
+
+    test('LSPosed 模块 tag：versionCode-versionName 与应用 versionName 匹配', () {
+      expect(versionMatchesTag('1.3.4', '20950-1.3.4'), isTrue);
+      expect(versionMatchesTag('v1.3.4', '20950-1.3.4'), isTrue);
+      expect(versionMatchesTag('1.3.5', '20950-1.3.4'), isFalse);
+      // 后缀不是版本号时回退整段比对，不误判
+      expect(versionMatchesTag('1.2.3', 'v1.2.3-beta'), isTrue);
+      // 边缘：安装版本与后缀字面相同视为同版本（无害）
+      expect(versionMatchesTag('beta', 'v1.2.3-beta'), isTrue);
+      // 无 - 的 tag 不受影响
+      expect(versionMatchesTag('1.2.3', '1.2.3'), isTrue);
+    });
   });
 
   group('版本记录文件', () {

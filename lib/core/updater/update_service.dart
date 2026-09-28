@@ -98,7 +98,7 @@ class UpdateService {
     if (match == null) {
       hasUpdate = false;
     } else if (installed != null && installed.isNotEmpty) {
-      hasUpdate = !versionMatches(installed, release.tagName);
+      hasUpdate = !versionMatchesTag(installed, release.tagName);
     } else {
       hasUpdate = repo.lastInstalledTag != release.tagName;
     }
@@ -211,8 +211,8 @@ class UpdateService {
       final modules = await _modules();
       for (final e in modules.entries) {
         final prop = parseModuleProp(e.value);
-        if (versionMatches(prop.version, tag) ||
-            versionMatches(prop.versionCode, tag)) {
+        if (versionMatchesTag(prop.version, tag) ||
+            versionMatchesTag(prop.versionCode, tag)) {
           return UpdateIdentity(moduleId: e.key);
         }
       }
@@ -226,7 +226,7 @@ class UpdateService {
       // 反查失败时记录原因，便于排查（歧义 / 未安装 / 读取失败）
       final hits = versions.entries
           .where((e) =>
-              e.key != repo.packageName && versionMatches(e.value, tag))
+              e.key != repo.packageName && versionMatchesTag(e.value, tag))
           .map((e) => e.key)
           .toList();
       AppLog.info('反查 ${repo.fullName}：读取到 ${versions.length} 个包，'
