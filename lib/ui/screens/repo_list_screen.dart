@@ -35,6 +35,7 @@ enum RepoCategory {
 class _RepoListScreenState extends ConsumerState<RepoListScreen> {
   final Map<String, CancelToken> _cancel = {};
   final Set<String> _selected = {}; // 批量更新勾选
+  final Map<String, bool> _launchable = {}; // Android 应用是否有启动入口（缓存）
   bool _busy = false; // 更新（下载/安装）进行中
   RepoCategory _category = RepoCategory.all; // 当前分类（仅 Android 显示）
 
@@ -94,13 +95,34 @@ class _RepoListScreenState extends ConsumerState<RepoListScreen> {
   bool get _canOpenFolder => Platform.isWindows || Platform.isLinux;
 
   /// 「启动」按钮可见性：
-  /// - Android：已知包名（配置或自动反查）即可直接打开应用
+  /// - Android：已知包名且应用有启动入口（XP 模块视为可启动）；
+  ///   启动入口异步查询（[_launchable] 缓存），查询前按可启动显示
   /// - 桌面端：需在创建/编辑仓库时指定「启动文件」；未指定则不显示
   bool _canLaunch(RepoConfig r) {
     if (Platform.isAndroid) {
-      return r.packageName?.isNotEmpty ?? false;
+      final pkg = r.packageName;
+      if (pkg == null || pkg.isEmpty) return false;
+      final cached = _launchable[r.fullName];
+      if (cached != null) return cached;
+      _launchable[r.fullName] = true; // 先按可启动显示，异步查询后修正
+      _resolveLaunchable(r.fullName, pkg);
+      return true;
     }
     return r.launchFile?.isNotEmpty ?? false;
+  }
+
+  /// 异步查询应用的启动入口并刷新卡片（无入口的隐藏「启动」按钮）
+  void _resolveLaunchable(String fullName, String pkg) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final ok = await ref.read(androidEnvProvider).isAppLaunchable(pkg);
+        if (!mounted) return;
+        if (_launchable[fullName] == ok) return;
+        setState(() => _launchable[fullName] = ok);
+      } catch (_) {
+        // 查询失败保持原状（按可启动显示）
+      }
+    });
   }
 
   /// 启动仓库对应的应用
