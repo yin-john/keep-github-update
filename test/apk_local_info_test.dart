@@ -178,13 +178,39 @@ void main() {
     expect(env.calls, 1, reason: '缺 Xposed 标记的旧缓存应重新提取');
     expect(info?.label, '重提取应用');
     expect(info?.xposed, isTrue);
-    // 重提取后的缓存包含 Xposed 行，再次调用命中缓存
+    // 重提取后的缓存包含提取器 v2 标记，再次调用命中缓存
     final again = await extractApkInfoIntoDir(env, dir);
     expect(again?.xposed, isTrue);
     expect(env.calls, 1, reason: '新缓存应直接命中');
-    expect(
-        File(p.join(dir, apkNameFileName)).readAsStringSync(),
+    expect(File(p.join(dir, apkNameFileName)).readAsStringSync(),
         contains('Xposed 模块: 是'));
+  });
+
+  test('旧提取器（0.2.13）生成的缓存 → 视为过期重新提取', () async {
+    final dir = p.join(tmp.path, 'dl');
+    Directory(dir).createSync(recursive: true);
+    apkIn(dir, 'app.apk')
+        .setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 1)));
+    final srcIcon = File(p.join(tmp.path, 'src.png'))
+      ..writeAsBytesSync([5, 5]);
+    File(p.join(dir, apkIconFileName)).writeAsBytesSync([1]);
+    // 0.2.13 格式：有 Xposed 行但无「提取器: v2」标记（当时还识别不出新式模块）
+    File(p.join(dir, apkNameFileName)).writeAsStringSync(
+        '名称: 旧检测应用\n包名: com.old\n版本: 1.0\nXposed 模块: 否\n');
+    final env = _FakeEnv(const ApkAppInfo(
+      label: '新检测应用',
+      iconPath: srcIcon.path,
+      xposed: true,
+    ));
+
+    final info = await extractApkInfoIntoDir(env, dir);
+
+    expect(env.calls, 1, reason: '旧提取器缓存应重新提取');
+    expect(info?.xposed, isTrue);
+    // 新缓存带 v2 标记，后续命中
+    final again = await extractApkInfoIntoDir(env, dir);
+    expect(again?.xposed, isTrue);
+    expect(env.calls, 1);
   });
 
   test('Xposed 应用：提取结果带 xposed 标记并写入缓存', () async {

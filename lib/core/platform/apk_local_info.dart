@@ -55,6 +55,9 @@ String formatApkInfoTxt(ApkAppInfo info) {
   if (info.version?.isNotEmpty ?? false) b.writeln('版本: ${info.version}');
   // 始终写入（是/否）：缓存文本缺该行说明产生于 Xposed 识别之前，需重提取
   b.writeln('Xposed 模块: ${info.xposed ? '是' : '否'}');
+  // 提取器版本标记：检测逻辑升级（如 0.2.14 识别新式 libxposed 模块）后，
+  // 旧版本生成的缓存需要重提取一次，否则「Xposed 模块: 否」永远不被纠正
+  b.writeln('提取器: v2');
   return b.toString();
 }
 
@@ -178,9 +181,10 @@ ApkAppInfo? _cachedResult(String apk, File nameFile, File iconFile) {
     return null; // APK 比缓存新（刚更新过），需要重新提取
   }
   final content = nameFile.readAsStringSync();
-  // 结构化文本但缺「Xposed 模块:」行 → 产生于 Xposed 识别功能之前，
-  // 视为过期：重提取一次以获得分类标记（旧版单行纯名称格式不受影响）
-  if (content.contains('名称:') && !content.contains('Xposed 模块:')) {
+  // 结构化文本但缓存由旧版提取器生成（缺「提取器: v2」标记）→ 视为过期：
+  // 检测逻辑升级后需要重提取一次，否则旧的「Xposed 模块: 否」不被纠正
+  //（旧版单行纯名称格式不受影响）
+  if (content.contains('名称:') && !content.contains('提取器: v2')) {
     return null;
   }
   return parseApkInfoTxt(content, iconPath: iconFile.path);
