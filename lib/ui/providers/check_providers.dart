@@ -142,14 +142,18 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
   ///
   /// 提取优先级：
   /// 1. 本地已下载过 APK → 直接从 APK 提取（最准确）；
-  /// 2. **从未下载过**且已安装版本与仓库最新版本一致 → 从已安装的应用提取
-  ///    （避免「已装旧版但仓库已有新版」时提取到旧版信息）。
+  /// 2. 本地无 APK 且已安装版本与仓库最新版本一致 → 从已安装的应用提取
+  ///    （已装版本与最新一致时信息必然准确，无论是否曾下载过）。
   ///
   /// 已有名称与图标时不跳过：Xposed 分类标记可能尚未识别（旧版缓存），
   /// 依靠产物缓存与 [_applyApkInfo] 的无变化短路把开销降到最低。
   Future<void> _fillApkInfo(RepoConfig r, UpdateCheck c) async {
-    if (!r.fetchApkInfo || !r.isApkRepo) return;
     if (!Platform.isAndroid) return;
+    if (!r.fetchApkInfo || !r.isApkRepo) {
+      AppLog.info('补全 ${r.fullName}：未开启「自动获取 APK 信息」'
+          '或规则不含 APK 安装策略，跳过');
+      return;
+    }
     final fresh = ref.read(configProvider.notifier).freshRepo(r);
     final dir = repoDownloadDir(r.owner, r.repo,
         baseDir: ref.read(configProvider).downloadDir);
@@ -161,30 +165,32 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
       if (info == null || info.isEmpty) {
         AppLog.warn('补全 ${r.fullName}：从本地 APK 提取名称/图标失败');
       }
-    } else if (fresh.downloadedVersion == null && c.match != null) {
-      if (fresh.packageName?.isEmpty ?? true) {
-        AppLog.info('补全 ${r.fullName}：未下载过 APK 且未识别包名，'
-            '无法从已安装应用提取（可在仓库编辑页手动填写包名）');
-      } else {
-        final installed = await ref
-            .read(updateServiceProvider)
-            .resolveInstalledVersion(fresh);
-        AppLog.info('补全 ${r.fullName}：已装版本 ${installed ?? '未知'}，'
-            '仓库最新 ${c.release.tagName}');
-        if (installed != null &&
-            installed.isNotEmpty &&
-            versionMatchesTag(installed, c.release.tagName)) {
-          info = await _extractInstalledAppInfo(fresh);
-          if (info == null || info.isEmpty) {
-            AppLog.warn('补全 ${r.fullName}：从已安装应用提取失败');
-          }
+    } else if (c.match == null) {
+      AppLog.info('补全 ${r.fullName}：本次检测未找到匹配资产，跳过');
+    } else if (fresh.packageName?.isEmpty ?? true) {
+      AppLog.info('补全 ${r.fullName}：无本地 APK 且未识别包名，'
+          '无法从已安装应用提取（可在仓库编辑页手动填写包名）');
+    } else {
+      final installed =
+          await ref.read(updateServiceProvider).resolveInstalledVersion(fresh);
+      AppLog.info('补全 ${r.fullName}：已装版本 ${installed ?? '未知'}，'
+          '仓库最新 ${c.release.tagName}');
+      if (installed != null &&
+          installed.isNotEmpty &&
+          versionMatchesTag(installed, c.release.tagName)) {
+        info = await _extractInstalledAppInfo(fresh);
+        if (info == null || info.isEmpty) {
+          AppLog.warn('补全 ${r.fullName}：从已安装应用提取失败');
         }
       }
     }
     if (info != null && info.isNotEmpty) {
-      _applyApkInfo(ref.read(configProvider), ref.read(configProvider.notifier),
-          r, info,
+      final changed = _applyApkInfo(
+          ref.read(configProvider), ref.read(configProvider.notifier), r, info,
           setDownloadedVersion: fromDownload);
+      if (changed) {
+        AppLog.info('补全 ${r.fullName}：已写入（xposed=${info.xposed ? '是' : '否'}）');
+      }
     }
   }
 
@@ -332,11 +338,11 @@ Future<ApkAppInfo?> fetchApkInfoForRepo(
   }
 }
 
-/// 把提取到的名称/包名/版本/图标写入仓库配置
+/// 把提取到的名称/包名/版本/图标写入仓库配置，返回是否有实际变化。
 /// [config] 为调用时的配置快照（StateNotifier.state 不能在外部访问）；
 /// [setDownloadedVersion] 为假时不动已下载版本（信息来自已安装应用）。
 /// 无任何字段变化时不写盘（每次检测都会尝试补全信息）。
-void _applyApkInfo(
+bool _applyApkInfo(
     AppConfig config, ConfigNotifier notifier, RepoConfig r, ApkAppInfo info,
     {bool setDownloadedVersion = true}) {
   final cur = config.repos.firstWhere(
@@ -364,6 +370,7 @@ void _applyApkInfo(
       merged.packageName != cur.packageName ||
       (setDownloadedVersion &&
           merged.downloadedVersion != cur.downloadedVersion);
-  if (!changed) return;
+  if (!changed) return false;
   notifier.updateRepo(merged);
+  return true;
 }
