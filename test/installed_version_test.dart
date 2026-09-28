@@ -143,7 +143,8 @@ Packages:
   group('versionMatchesTag（tag 变体匹配）', () {
     test('常规 tag 保持 versionMatches 行为', () {
       expect(versionMatchesTag('1.2.3', 'v1.2.3'), isTrue);
-      expect(versionMatchesTag('1.2.3', '1.2'), isTrue);
+      expect(versionMatchesTag('1.2.0', '1.2'), isTrue);
+      expect(versionMatchesTag('1.2.3', '1.2'), isFalse);
       expect(versionMatchesTag('1.2.3', 'v1.2.3-beta'), isTrue);
       expect(versionMatchesTag('1.2.3', 'v1.2.4'), isFalse);
       expect(versionMatchesTag(null, 'v1.2.3'), isFalse);
