@@ -272,10 +272,25 @@ class MainActivity : FlutterActivity() {
                 "iconPath" to saveApkIcon(appInfo, info.packageName),
                 "packageName" to info.packageName,
                 "version" to info.versionName,
-                "xposed" to hasXposedMeta(appInfo)
+                "xposed" to isXposedApp(appInfo)
             )
         } catch (e: Exception) {
             null
+        }
+    }
+
+    /** 应用是否为 Xposed 模块：旧式 xposedmodule 元数据，或新式 META-INF/xposed/ 标记（libxposed API） */
+    private fun isXposedApp(appInfo: android.content.pm.ApplicationInfo): Boolean {
+        if (hasXposedMeta(appInfo)) return true
+        // 新式模块（libxposed API，如 PureDuPan）：APK 内含 META-INF/xposed/ 标记文件
+        val src = appInfo.sourceDir ?: return false
+        return try {
+            java.util.zip.ZipFile(src).use { zip ->
+                zip.getEntry("META-INF/xposed/java_init.list") != null ||
+                    zip.getEntry("META-INF/xposed/module.prop") != null
+            }
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -300,7 +315,7 @@ class MainActivity : FlutterActivity() {
         return try {
             val pm = packageManager
             val isXposed = try {
-                hasXposedMeta(pm.getApplicationInfo(pkg, PackageManager.GET_META_DATA))
+                isXposedApp(pm.getApplicationInfo(pkg, PackageManager.GET_META_DATA))
             } catch (e: Exception) {
                 false
             }
@@ -356,7 +371,7 @@ class MainActivity : FlutterActivity() {
                 "iconPath" to saveApkIcon(appInfo, info.packageName),
                 "packageName" to info.packageName,
                 "version" to info.versionName,
-                "xposed" to hasXposedMeta(appInfo)
+                "xposed" to isXposedApp(appInfo)
             )
         } catch (e: Exception) {
             null
