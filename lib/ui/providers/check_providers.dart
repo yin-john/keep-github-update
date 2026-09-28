@@ -173,7 +173,7 @@ class CheckNotifier extends StateNotifier<Map<String, RepoCheckState>> {
             '仓库最新 ${c.release.tagName}');
         if (installed != null &&
             installed.isNotEmpty &&
-            versionMatches(installed, c.release.tagName)) {
+            versionMatchesTag(installed, c.release.tagName)) {
           info = await _extractInstalledAppInfo(fresh);
           if (info == null || info.isEmpty) {
             AppLog.warn('补全 ${r.fullName}：从已安装应用提取失败');
