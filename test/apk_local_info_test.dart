@@ -197,7 +197,7 @@ void main() {
     // 0.2.13 格式：有 Xposed 行但无「提取器: v2」标记（当时还识别不出新式模块）
     File(p.join(dir, apkNameFileName)).writeAsStringSync(
         '名称: 旧检测应用\n包名: com.old\n版本: 1.0\nXposed 模块: 否\n');
-    final env = _FakeEnv(const ApkAppInfo(
+    final env = _FakeEnv(ApkAppInfo(
       label: '新检测应用',
       iconPath: srcIcon.path,
       xposed: true,
