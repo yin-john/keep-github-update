@@ -1,7 +1,11 @@
 # GRKU · GitHub Releases Keep Update
 
+![GRKU](assets/brand/README-banner.png)
+
 自动追踪 GitHub Release，检测到新版本后按**平台 + 策略**下载并安装的跨平台工具。
 同一套核心逻辑提供 **GUI（Flutter）**、**CLI** 与 **TUI** 三种界面。
+
+📖 **代码文档**：[doc/README.md](doc/README.md)（架构总览 / 配置体系 / 更新编排 / 平台实现 / GUI / CLI / CI 发布，含目录）
 
 ## 功能
 当前已实现windows和Android双平台
@@ -81,6 +85,8 @@ lib/
   ui/         Flutter GUI（仓库列表、下载、设置）
   tui/        终端交互界面
   cli/        命令行入口与子命令
+doc/          代码文档（含目录，见上）
+assets/brand/ 图标源图与 README 横幅
 test/         单元测试（版本比对、签名校验、配置读写、下载、更新编排等）
 vendor/win32  为兼容 Windows 工具链本地化的 win32 包（由 dependency_overrides 指向）
 ```
@@ -89,3 +95,4 @@ vendor/win32  为兼容 Windows 工具链本地化的 win32 包（由 dependency
 
 - Android 端部分能力（权限申请、签名读取、系统安装器）通过 `MethodChannel`（`grku/native`）调用原生实现，见 `android/app/src/main/kotlin/.../MainActivity.kt`
 - 日志默认写在用户可访问路径（Android 为 `<外部存储>/grku/logs/app.log`），无写入权限时自动回退到应用私有目录
+- 应用图标源图见 `assets/brand/`（Android 启动图标在 `android/app/src/main/res/mipmap-*/`，Windows 为 `windows/runner/resources/app_icon.ico`）
