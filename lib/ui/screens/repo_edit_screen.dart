@@ -54,6 +54,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
   String? _urlError;
   bool _installEdited = false; // 用户是否手动改过安装目录（改过则不再自动填充）
   bool _fetchApkInfo = false; // Android：下载 APK 后自动获取图标与软件名称
+  bool _notify = true; // 有更新时发系统通知（notificationsEnabled）
   int? _intervalOverride; // 该仓库的检测间隔（null = 跟随全局）
 
   @override
@@ -74,6 +75,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
     _launchFile = TextEditingController(text: r?.launchFile ?? '');
     _launchCmd = TextEditingController(text: r?.launchCmd ?? '');
     _fetchApkInfo = r?.fetchApkInfo ?? true; // 新仓库默认开启
+    _notify = r?.notificationsEnabled ?? true;
     _intervalOverride = r?.checkIntervalMinutes;
     _apkMethod = r?.apkInstallMethod;
     _installEdited = r != null; // 编辑既有仓库时不自动改写安装目录
@@ -182,7 +184,7 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
       tagFilter: _tag.text.isEmpty ? null : _tag.text,
       assetRules: rules,
       lastInstalledTag: widget.repo?.lastInstalledTag,
-      notificationsEnabled: widget.repo?.notificationsEnabled ?? true,
+      notificationsEnabled: _notify,
       webhook: widget.repo?.webhook,
       installDir: _install.text.isEmpty ? null : _install.text,
       containerName: _container.text.isEmpty ? null : _container.text,
@@ -433,6 +435,16 @@ class _RepoEditScreenState extends ConsumerState<RepoEditScreen> {
                   '从下载到的 APK（或已安装的应用）中读取名称、图标与版本并显示在列表中',
                   style: TextStyle(fontSize: 12)),
             ),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            value: _notify,
+            onChanged: (v) => setState(() => _notify = v),
+            title: const Text('有更新时发系统通知'),
+            subtitle: const Text('关闭后该仓库检测到更新不再弹通知（手动检测/更新不受影响）',
+                style: TextStyle(fontSize: 12)),
+          ),
           const SizedBox(height: 12),
           // —— 规则库：按系统分组 ——
           RulesLibrary(platform: host, onPick: _applyPreset),
