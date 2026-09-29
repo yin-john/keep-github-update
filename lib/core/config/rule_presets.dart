@@ -85,6 +85,15 @@ const Map<PlatformType, List<RulePreset>> systemRulePresets = {
   ],
   PlatformType.android: [
     RulePreset(
+      name: 'APK 通用',
+      description: '匹配所有 .apk（不限架构，不分 32/64 位）',
+      rule: AssetRule(
+        platform: PlatformType.android,
+        strategy: UpdateStrategy.apk,
+        nameRegex: r'.*\.apk$',
+      ),
+    ),
+    RulePreset(
       name: 'APK (ARM64)',
       description: '匹配 arm64-v8a 的 .apk',
       rule: AssetRule(
