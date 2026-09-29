@@ -243,38 +243,8 @@ class _RuleEditorState extends State<RuleEditor> {
                     ),
                 ],
               ),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButton<UpdateStrategy>(
-                      value: _strategy,
-                      isExpanded: true,
-                      onChanged: (v) => setState(() {
-                        _strategy = v!;
-                        _emit();
-                      }),
-                      items: widget.platform.strategies
-                          .map((e) => DropdownMenuItem(
-                              value: e, child: Text(e.label)))
-                          .toList(),
-                    ),
-                  ),
-                ],
-              ),
-              if (widget.platform == PlatformType.android)
-                DropdownButton<TargetArch>(
-                  value: _arch,
-                  isExpanded: true,
-                  hint: const Text('目标架构'),
-                  onChanged: (v) => setState(() {
-                    _arch = v!;
-                    _emit();
-                  }),
-                  items: TargetArch.values
-                      .map((e) =>
-                          DropdownMenuItem(value: e, child: Text(e.label)))
-                      .toList(),
-                ),
+              // 策略与目标架构不再提供下拉框（默认 APK + 不限架构；
+              // 需要模块刷入或指定架构时用规则库预设覆盖）
               TextField(
                 controller: _regex,
                 decoration: const InputDecoration(
