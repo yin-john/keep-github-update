@@ -114,6 +114,14 @@ function bindGlobal() {
   $('btnSave').addEventListener('click', save);
   $('btnNew').addEventListener('click', () => newDocument(true));
   $('paletteSearch').addEventListener('input', (e) => renderPalette(e.target.value));
+
+  // 只高亮鼠标下「最内层」的节点：mouseover 会冒泡，取 closest 即可。
+  const canvas = $('canvas');
+  canvas.addEventListener('mouseover', (e) => {
+    setHovered(e.target instanceof Element ? e.target.closest('.node') : null);
+  });
+  canvas.addEventListener('mouseleave', () => setHovered(null));
+
   document.addEventListener('keydown', onKeyDown);
 }
 
@@ -167,7 +175,10 @@ function renderPalette(filter) {
       item.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('application/x-ui-type', spec.type);
         e.dataTransfer.effectAllowed = 'copy';
+        // 拖拽期间才显示插入条，平时画布保持纯净的所见即所得。
+        setDragging(true);
       });
+      item.addEventListener('dragend', () => setDragging(false));
       host.appendChild(item);
     }
   }
@@ -184,75 +195,111 @@ function renderCanvas() {
   const host = $('canvas');
   const keep = host.scrollTop;
   host.textContent = '';
+  hoveredEl = null; // 节点已重建，旧的悬浮引用失效
   if (state.doc) host.appendChild(renderNode(state.doc));
   host.scrollTop = keep;
   renderBreadcrumb();
 }
 
-function renderNode(node) {
-  const spec = specOf(node);
-  const wrap = document.createElement('div');
-  wrap.className = 'node' + (node.id === state.selectedId ? ' sel' : '');
-  wrap.dataset.id = String(node.id);
-  wrap.addEventListener('click', (e) => {
-    e.stopPropagation();
-    select(node.id);
-  });
+/* ————— 悬浮 / 拖拽中的视觉状态（都不参与布局） ————— */
 
-  // 头部：类型标签（可拖拽移动）+ 删除
-  const head = document.createElement('div');
-  head.className = 'node-head';
+let hoveredEl = null;
+
+function setHovered(el) {
+  if (hoveredEl === el) return;
+  if (hoveredEl) hoveredEl.classList.remove('hover');
+  hoveredEl = el;
+  if (hoveredEl) hoveredEl.classList.add('hover');
+}
+
+function setDragging(on) {
+  $('canvas').classList.toggle('dragging', on);
+}
+
+/// 悬浮 / 选中时才出现的浮层：类型标签 + 删除。绝对定位，不占布局。
+function makeOverlay(node) {
+  const bar = document.createElement('div');
+  bar.className = 'node-overlay';
+  bar.draggable = false;
+  bar.addEventListener('click', (e) => e.stopPropagation());
+
   const tag = document.createElement('span');
   tag.className = 'node-tag';
   tag.textContent = node.type;
-  head.appendChild(tag);
+  bar.appendChild(tag);
+
   if (node.id !== state.doc.id) {
     const del = document.createElement('button');
     del.type = 'button';
-    del.className = 'mini';
-    del.textContent = '删除';
+    del.className = 'node-del';
+    del.textContent = '✕';
+    del.title = '删除';
+    del.draggable = false;
     del.addEventListener('click', (e) => {
       e.stopPropagation();
       removeNode(node.id);
     });
-    head.appendChild(del);
+    bar.appendChild(del);
   }
-  head.draggable = true;
-  head.addEventListener('dragstart', (e) => {
-    e.stopPropagation();
-    e.dataTransfer.setData('application/x-ui-node', String(node.id));
-    e.dataTransfer.effectAllowed = 'move';
-  });
-  wrap.appendChild(head);
-
-  const body = document.createElement('div');
-  body.className = 'node-body';
-  styleBody(body, node, spec);
-  wrap.appendChild(body);
-
-  if (spec.children === 'multi') {
-    if (node.children.length === 0) {
-      body.appendChild(makeSlot(node, 0, true));
-    } else {
-      for (let i = 0; i <= node.children.length; i++) {
-        body.appendChild(makeSlot(node, i, false));
-        if (i < node.children.length) body.appendChild(renderNode(node.children[i]));
-      }
-    }
-  } else if (spec.children === 'single') {
-    // 单子节点容器满员后不再显示插槽，避免拖入第二个子节点生成非法树。
-    if (node.children.length === 0) {
-      body.appendChild(makeSlot(node, 0, true));
-    } else {
-      body.appendChild(renderNode(node.children[0]));
-    }
-  } else {
-    body.appendChild(renderLeaf(node, spec));
-  }
-  return wrap;
+  return bar;
 }
 
-function styleBody(body, node, spec) {
+/// 所见即所得：每个节点只产出一个「按真实外观渲染」的元素，
+/// 类型标签与删除按钮放在绝对定位的浮层里，不占布局、平时不可见。
+function renderNode(node) {
+  const spec = specOf(node);
+  const isRoot = node.id === state.doc.id;
+
+  // 叶子用它自己的元素（span/div/label…），容器用 div 当 flex/box 容器。
+  const el = spec.children === 'none' ? renderLeaf(node, spec) : document.createElement('div');
+
+  el.classList.add('node');
+  if (node.id === state.selectedId) el.classList.add('sel');
+  el.dataset.id = String(node.id);
+  el.style.position = 'relative';
+
+  if (!isRoot) {
+    el.draggable = true;
+    el.addEventListener('dragstart', (e) => {
+      e.stopPropagation();
+      e.dataTransfer.setData('application/x-ui-node', String(node.id));
+      e.dataTransfer.effectAllowed = 'move';
+      setDragging(true);
+    });
+    el.addEventListener('dragend', () => setDragging(false));
+  }
+
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    select(node.id);
+  });
+
+  if (spec.children !== 'none') {
+    styleNode(el, node, spec);
+    if (spec.children === 'multi') {
+      if (node.children.length === 0) {
+        el.appendChild(makeSlot(node, 0, true));
+      } else {
+        for (let i = 0; i <= node.children.length; i++) {
+          el.appendChild(makeSlot(node, i, false));
+          if (i < node.children.length) el.appendChild(renderNode(node.children[i]));
+        }
+      }
+    } else {
+      // 单子节点容器满员后不再显示插槽，避免拖入第二个子节点生成非法树。
+      if (node.children.length === 0) {
+        el.appendChild(makeSlot(node, 0, true));
+      } else {
+        el.appendChild(renderNode(node.children[0]));
+      }
+    }
+  }
+
+  el.appendChild(makeOverlay(node));
+  return el;
+}
+
+function styleNode(body, node, spec) {
   const p = node.props || {};
   const type = node.type;
   if (type === 'Column') {
@@ -329,10 +376,14 @@ function renderLeaf(node, spec) {
     if (p.size != null) el.style.fontSize = p.size + 'px';
     if (p.color) el.style.color = p.color;
   } else if (type === 'Divider') {
-    el = document.createElement('hr');
-    el.style.border = 'none';
-    el.style.borderTop = '1px solid var(--border)';
-    el.style.width = '100%';
+    // <hr> 是空元素挂不了浮层，外面套一层 div。
+    el = document.createElement('div');
+    const hr = document.createElement('hr');
+    hr.style.border = 'none';
+    hr.style.borderTop = '1px solid var(--border)';
+    hr.style.width = '100%';
+    hr.style.margin = '0';
+    el.appendChild(hr);
     if (p.height != null) el.style.margin = p.height / 2 + 'px 0';
   } else if (type === 'ElevatedButton') {
     el = document.createElement('span');
@@ -391,6 +442,7 @@ function makeSlot(parent, index, empty) {
 }
 
 function handleDrop(e, parent, index) {
+  setDragging(false);
   const type = e.dataTransfer.getData('application/x-ui-type');
   const nodeId = e.dataTransfer.getData('application/x-ui-node');
 

@@ -143,32 +143,72 @@ aside {
   white-space: pre;
 }
 
-/* ————— 画布中的节点 ————— */
+/* ————— 画布中的节点（所见即所得：平时不画任何框线） ————— */
 .node { position: relative; }
-.node.sel { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+
+/* 悬浮虚线、选中实线。用 outline 而非 border，避免改变布局。 */
+.node.hover { outline: 1px dashed rgba(96, 165, 250, .7); outline-offset: 1px; }
+.node.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* 浮层：仅悬浮/选中时出现，绝对定位所以不占布局 */
+.node-overlay {
+  position: absolute;
+  top: -9px;
+  left: -1px;
+  display: none;
+  align-items: center;
+  gap: 3px;
+  z-index: 20;
+}
+.node.hover > .node-overlay,
+.node.sel > .node-overlay { display: flex; }
 
 .node-tag {
   font-size: 10px;
+  line-height: 1.5;
   color: var(--accent-2);
-  background: rgba(59, 130, 246, .15);
-  border: 1px solid rgba(59, 130, 246, .4);
+  background: #0b1220;
+  border: 1px solid rgba(59, 130, 246, .55);
   border-radius: 4px;
-  padding: 0 4px;
-  margin-right: 4px;
+  padding: 0 5px;
   user-select: none;
+  white-space: nowrap;
 }
 
-.slot { min-height: 6px; }
-.slot.hover { background: rgba(59, 130, 246, .25); border-radius: 3px; }
+.node-del {
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #0b1220;
+  border: 1px solid rgba(248, 113, 113, .55);
+  color: var(--err);
+  cursor: pointer;
+}
+.node-del:hover { background: rgba(248, 113, 113, .2); }
+
+/* 插入条：平时完全隐藏，只在拖拽期间出现 */
+.slot { display: none; }
+.empty-slot { display: block; }
+.canvas.dragging .slot { display: block; min-height: 6px; }
+.canvas.dragging .slot.hover { background: var(--accent); border-radius: 3px; }
+
+/* 空容器占位：必须常驻，否则空容器既点不中也拖不进去 */
 .empty-slot {
   border: 1px dashed var(--border);
   border-radius: 6px;
-  padding: 10px;
+  padding: 8px;
   color: var(--muted);
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
+  opacity: .65;
 }
-.empty-slot.hover { border-color: var(--accent); color: var(--accent-2); background: rgba(59,130,246,.08); }
+.empty-slot.hover {
+  border-color: var(--accent);
+  color: var(--accent-2);
+  background: rgba(59, 130, 246, .08);
+  opacity: 1;
+}
 
 .drop-hint { color: var(--muted); font-size: 12px; }
 
