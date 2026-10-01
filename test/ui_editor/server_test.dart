@@ -64,8 +64,8 @@ void main() {
   }
 
   /// 直接发原始请求：可以完全控制 Host 头（HttpClient 未必允许覆盖）。
-  Future<String> rawRequest(String request) async {
-    final socket = await Socket.connect('127.0.0.1', server.port);
+  Future<String> rawRequest(String request, {int? port}) async {
+    final socket = await Socket.connect('127.0.0.1', port ?? server.port);
     socket.write(request);
     await socket.flush();
 
@@ -124,6 +124,44 @@ void main() {
       '\r\n',
     );
     expect(response, contains('403'));
+  });
+
+  test('监听 0.0.0.0 时接受局域网 IP，仍拒绝域名', () async {
+    final lanRoot = await Directory.systemTemp.createTemp('grku_lan_root');
+    final lanServer = await EditorServer.start(
+      rootDir: lanRoot,
+      assetsDir: assets,
+      token: token,
+      host: '0.0.0.0',
+      formatOnSave: false,
+    );
+    addTearDown(() async {
+      await lanServer.close();
+      await deleteDirQuietly(lanRoot);
+    });
+
+    final port = lanServer.port;
+    expect(lanServer.isLoopbackOnly, isFalse);
+    expect(
+      await rawRequest(
+        'GET /api/palette HTTP/1.1\r\n'
+        'Host: 192.168.1.50:$port\r\n'
+        'X-Editor-Token: $token\r\n'
+        'Connection: close\r\n\r\n',
+        port: port,
+      ),
+      contains('200'),
+    );
+    expect(
+      await rawRequest(
+        'GET /api/palette HTTP/1.1\r\n'
+        'Host: evil.example:$port\r\n'
+        'X-Editor-Token: $token\r\n'
+        'Connection: close\r\n\r\n',
+        port: port,
+      ),
+      contains('403'),
+    );
   });
 
   test('拒绝 OPTIONS 且不返回 CORS 头', () async {

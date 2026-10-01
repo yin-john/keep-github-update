@@ -40,6 +40,7 @@ class ApiException implements Exception {
 class EditorServer {
   EditorServer._(
     this._server,
+    this.bindAddress,
     this.root,
     this.assetsDir,
     this.token, {
@@ -47,17 +48,23 @@ class EditorServer {
   })  : _formatOnSave = formatOnSave,
         _done = Completer<void>();
 
-  /// 绑定 `127.0.0.1`（`port` 为 0 时由系统分配）并开始监听。
+  /// 绑定 [host]（`port` 为 0 时由系统分配）并开始监听。
+  ///
+  /// [host] 默认 `127.0.0.1`，即只有本机可访问；传 `0.0.0.0` 才会暴露到局域网，
+  /// 此时**同网段任何人都能打开编辑器**（写盘能力仍在沙箱内，且 API 仍需令牌）。
   static Future<EditorServer> start({
     required Directory rootDir,
     required Directory assetsDir,
     required String token,
     int port = 0,
+    String host = '127.0.0.1',
     bool formatOnSave = true,
   }) async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+    final address = _parseBindAddress(host);
+    final server = await HttpServer.bind(address, port);
     final editor = EditorServer._(
       server,
+      address,
       rootDir,
       assetsDir,
       token,
@@ -73,12 +80,18 @@ class EditorServer {
   final String token;
   final bool _formatOnSave;
 
+  /// 实际绑定的地址。
+  final InternetAddress bindAddress;
+
   // 延迟初始化：构造期不能引用其它实例字段。
   late final DesignStore _store = DesignStore(root);
   final Completer<void> _done;
 
   /// 实际监听端口。
   int get port => _server.port;
+
+  /// 是否只绑了回环地址（决定要不要提示局域网地址）。
+  bool get isLoopbackOnly => bindAddress.isLoopback;
 
   /// 服务停止时完成。
   Future<void> get done => _done.future;
@@ -273,8 +286,17 @@ class EditorServer {
   // ————————————— 鉴权与请求解析 —————————————
 
   bool _hostAllowed(HttpRequest request) {
-    final host = request.headers.host;
-    if (host != '127.0.0.1' && host != 'localhost' && host != '::1') {
+    var host = request.headers.host ?? '';
+    // IPv6 在 Host 头里带方括号（[::1]），剥掉再解析。
+    if (host.startsWith('[') && host.endsWith(']')) {
+      host = host.substring(1, host.length - 1);
+    }
+    if (host.isEmpty) {
+      return false;
+    }
+    // 只接受 localhost 与 IP 字面量（局域网 IP 也算）。DNS rebinding 必须借助
+    // 域名，而浏览器会把域名原样写进 Host，因此非 localhost 的域名一律拒绝。
+    if (host != 'localhost' && InternetAddress.tryParse(host) == null) {
       return false;
     }
     final port = request.headers.port;
@@ -339,6 +361,16 @@ class EditorServer {
       // 响应可能已开始写出（如静态文件传输中断），忽略二次写入失败。
     }
   }
+}
+
+/// 把 `--host` 的取值转成绑定地址；只接受 IP 字面量（外加 `localhost` 别名）。
+InternetAddress _parseBindAddress(String host) {
+  final normalized = host == 'localhost' ? '127.0.0.1' : host;
+  final address = InternetAddress.tryParse(normalized);
+  if (address == null) {
+    throw ArgumentError('非法监听地址：$host（需要 IP 字面量，例如 0.0.0.0）');
+  }
+  return address;
 }
 
 Object? _decodeJson(List<int> bytes) {

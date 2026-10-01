@@ -67,16 +67,23 @@ grku tui                      # 交互式终端界面
 ```bash
 dart run tool/ui_editor.dart                     # 自动分配端口并打开浏览器
 dart run tool/ui_editor.dart --port 8765 --no-open
+dart run tool/ui_editor.dart --host 0.0.0.0      # 让同网段的手机/平板也能访问
 ```
 
 浏览器里从左侧拖拽组件、在右侧调属性，点「保存」即生成 `lib/ui/generated/<类名>.dart`；
 对正在运行的 `flutter run` 热重载就能看到效果。同一份设计会存为 `<类名>.design.json`
 sidecar，下次可以重新打开继续编辑。
 
-- 服务**只监听 `127.0.0.1`**，每次运行生成随机访问令牌（在启动时打印的 URL 里，勿分享）；
-- 写入被限制在 `lib/ui/generated/`；同名文件已存在时需显式确认覆盖；
+- 服务默认**只监听 `127.0.0.1`**，每次运行生成随机访问令牌（在启动时打印的 URL 里，勿分享）；
+  加 `--host 0.0.0.0` 才暴露到局域网，此时会额外打印局域网地址并给出安全提示——同网段任何人
+  都能打开页面，令牌等同于密码。无论绑哪里，`Host` 头都只接受 `localhost` 与 IP 字面量
+  （挡 DNS rebinding），并且拒绝 `OPTIONS` 预检、不发 CORS 头。
+- 写入被限制在 `lib/ui/generated/`；同名文件已存在时需显式确认覆盖。
+- 组件目录（`tool/ui_editor/widget_catalog.dart`）是编辑器与代码生成器的唯一事实来源，
+  `GET /api/palette` 直接下发，新增组件无需改前端 JS。
 - 生成的代码按项目 lint 规则**构造即合规**（`const` 传播、按需 import、单引号、构造器在 `build` 前），
-  因此可以直接提交，不会让 `flutter analyze` 变红；
+  可以直接提交而不会让 `flutter analyze` 变红；`tool/` 与 `lib/ui/generated/` 都在 analyzer 范围内。
+- 设计稿 sidecar 与生成的 `.dart` **都应提交**，不要写进 `.gitignore`。
 - 这是**开发期**工具：安装版（exe / apk）没有 `lib/` 源码，无法使用；生成的界面需要重新编译（或热重载）才生效。
 
 ## 开发流程（CI 在 GitHub 上跑）
@@ -95,27 +102,6 @@ gh run list --limit 5        # 最近的运行
 gh run view <run-id> --log-failed   # 只看失败步骤的日志
 ```
 
-### 可视化 UI 编辑器（开发期工具）
-
-`tool/ui_editor.dart` 提供一个**仅监听 127.0.0.1** 的本地 Web 服务：在浏览器里拖拽
-拼装界面，保存后生成 `lib/ui/generated/<Name>.dart`（一个 `StatelessWidget`），对正在
-运行的 `flutter run` 热重载即可看到效果。它是**开发期**工具——生成的代码需要重新编译，
-安装版（exe / apk）不含 `lib/` 源码，无法使用。
-
-```bash
-dart run tool/ui_editor.dart                     # 自动分配端口并打开浏览器
-dart run tool/ui_editor.dart --port 8765 --no-open
-```
-
-- 每次运行生成随机访问令牌，启动时打印带 `?token=…` 的地址；服务只绑回环地址，并校验
-  `Host` 头、拒绝 `OPTIONS` 预检、不发 CORS 头，因此局域网与网页 CSRF 都触达不了。
-- 组件目录（`tool/ui_editor/widget_catalog.dart`）是编辑器与代码生成器的唯一事实来源，
-  `GET /api/palette` 直接下发，新增组件无需改一行前端 JS。
-- 生成的代码按仓库启用的全部 lint 书写（含 `prefer_const_constructors`），可直接提交。
-- 设计稿以 `<Name>.design.json` 旁挂保存，便于再次打开编辑。`.dart` 与 `.design.json`
-  **都应提交**（前者是源码，后者是编辑状态），不要写进 `.gitignore`。
-- `tool/` 与 `lib/ui/generated/` 都在 analyzer 的范围内，因此这些代码同样必须 lint 干净。
-
 ## 目录结构
 
 ```
@@ -130,7 +116,6 @@ tool/         开发期工具（ui_editor.dart：本地可视化 UI 编辑器）
 doc/          代码文档（含目录，见上）
 assets/brand/ 图标源图与 README 横幅
 test/         单元测试（版本比对、签名校验、配置读写、下载、更新编排等）
-tool/         开发期工具（可视化 UI 编辑器：本地 web 服务 + Dart 代码生成）
 vendor/win32  为兼容 Windows 工具链本地化的 win32 包（由 dependency_overrides 指向）
 ```
 
