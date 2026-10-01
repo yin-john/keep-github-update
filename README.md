@@ -60,6 +60,25 @@ grku tui                      # 交互式终端界面
 
 配置分为两个文件：**软件配置** `config.yaml` 与**仓库配置** `repos.yaml`（同目录、均为 `configVersion: 4`）。旧版单文件配置（v1–v3）在每次启动时自动检测并转换，原文件备份为 `config.yaml.bak`；导入/导出仍是单个合并文件，便于分享。示例见 `example_config.yaml`。
 
+## 可视化 UI 编辑器（开发期工具）
+
+在项目根目录运行：
+
+```bash
+dart run tool/ui_editor.dart                     # 自动分配端口并打开浏览器
+dart run tool/ui_editor.dart --port 8765 --no-open
+```
+
+浏览器里从左侧拖拽组件、在右侧调属性，点「保存」即生成 `lib/ui/generated/<类名>.dart`；
+对正在运行的 `flutter run` 热重载就能看到效果。同一份设计会存为 `<类名>.design.json`
+sidecar，下次可以重新打开继续编辑。
+
+- 服务**只监听 `127.0.0.1`**，每次运行生成随机访问令牌（在启动时打印的 URL 里，勿分享）；
+- 写入被限制在 `lib/ui/generated/`；同名文件已存在时需显式确认覆盖；
+- 生成的代码按项目 lint 规则**构造即合规**（`const` 传播、按需 import、单引号、构造器在 `build` 前），
+  因此可以直接提交，不会让 `flutter analyze` 变红；
+- 这是**开发期**工具：安装版（exe / apk）没有 `lib/` 源码，无法使用；生成的界面需要重新编译（或热重载）才生效。
+
 ## 开发流程（CI 在 GitHub 上跑）
 
 分析与测试都由 GitHub Actions 负责，本地不必执行 `flutter analyze` / `flutter test`：
@@ -76,6 +95,27 @@ gh run list --limit 5        # 最近的运行
 gh run view <run-id> --log-failed   # 只看失败步骤的日志
 ```
 
+### 可视化 UI 编辑器（开发期工具）
+
+`tool/ui_editor.dart` 提供一个**仅监听 127.0.0.1** 的本地 Web 服务：在浏览器里拖拽
+拼装界面，保存后生成 `lib/ui/generated/<Name>.dart`（一个 `StatelessWidget`），对正在
+运行的 `flutter run` 热重载即可看到效果。它是**开发期**工具——生成的代码需要重新编译，
+安装版（exe / apk）不含 `lib/` 源码，无法使用。
+
+```bash
+dart run tool/ui_editor.dart                     # 自动分配端口并打开浏览器
+dart run tool/ui_editor.dart --port 8765 --no-open
+```
+
+- 每次运行生成随机访问令牌，启动时打印带 `?token=…` 的地址；服务只绑回环地址，并校验
+  `Host` 头、拒绝 `OPTIONS` 预检、不发 CORS 头，因此局域网与网页 CSRF 都触达不了。
+- 组件目录（`tool/ui_editor/widget_catalog.dart`）是编辑器与代码生成器的唯一事实来源，
+  `GET /api/palette` 直接下发，新增组件无需改一行前端 JS。
+- 生成的代码按仓库启用的全部 lint 书写（含 `prefer_const_constructors`），可直接提交。
+- 设计稿以 `<Name>.design.json` 旁挂保存，便于再次打开编辑。`.dart` 与 `.design.json`
+  **都应提交**（前者是源码，后者是编辑状态），不要写进 `.gitignore`。
+- `tool/` 与 `lib/ui/generated/` 都在 analyzer 的范围内，因此这些代码同样必须 lint 干净。
+
 ## 目录结构
 
 ```
@@ -83,11 +123,14 @@ lib/
   core/       配置模型与仓储、GitHub API、资产匹配、下载、更新编排、版本比对、平台桥接
   platforms/  Windows / Linux / Android 更新器装配与原生能力（Android MethodChannel）
   ui/         Flutter GUI（仓库列表、下载、设置）
+  ui/generated/ 可视化编辑器生成的界面（见「可视化 UI 编辑器」）
   tui/        终端交互界面
   cli/        命令行入口与子命令
+tool/         开发期工具（ui_editor.dart：本地可视化 UI 编辑器）
 doc/          代码文档（含目录，见上）
 assets/brand/ 图标源图与 README 横幅
 test/         单元测试（版本比对、签名校验、配置读写、下载、更新编排等）
+tool/         开发期工具（可视化 UI 编辑器：本地 web 服务 + Dart 代码生成）
 vendor/win32  为兼容 Windows 工具链本地化的 win32 包（由 dependency_overrides 指向）
 ```
 

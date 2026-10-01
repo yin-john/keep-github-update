@@ -1,0 +1,239 @@
+/* GRKU UI 编辑器 —— 配色与 App 保持一致 */
+:root {
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --panel-2: #172033;
+  --panel-3: #243044;
+  --border: #334155;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #3b82f6;
+  --accent-2: #60a5fa;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --err: #f87171;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+body { display: flex; flex-direction: column; }
+
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.brand { font-weight: 600; color: var(--accent-2); }
+.spacer { flex: 1; }
+
+.field { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.field input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 5px 8px;
+  width: 160px;
+  font: inherit;
+}
+
+button {
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+button:hover { background: #2c3b52; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover { background: #2f74e0; }
+button:disabled { opacity: .5; cursor: default; }
+
+.status { color: var(--muted); min-width: 180px; text-align: right; }
+.status.ok { color: var(--ok); }
+.status.err { color: var(--err); }
+
+main { flex: 1; display: flex; min-height: 0; }
+
+aside {
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#palette { width: 200px; border-right: 1px solid var(--border); }
+#inspector { width: 260px; border-left: 1px solid var(--border); }
+
+.pane-title {
+  padding: 8px 10px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.pane-title .hint { font-weight: 400; font-size: 11px; }
+
+#paletteSearch, #paletteList { margin: 8px; }
+#paletteSearch {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 8px;
+  font: inherit;
+}
+#paletteList { flex: 1; overflow: auto; margin-top: 0; }
+
+.cat { color: var(--muted); font-size: 11px; margin: 10px 0 4px; text-transform: uppercase; }
+.pal-item {
+  padding: 6px 9px;
+  margin-bottom: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: grab;
+  user-select: none;
+}
+.pal-item:hover { border-color: var(--accent); color: var(--accent-2); }
+.pal-item:active { cursor: grabbing; }
+
+#canvasWrap { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+#breadcrumb {
+  padding: 6px 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  min-height: 28px;
+}
+#breadcrumb span.crumb { cursor: pointer; }
+#breadcrumb span.crumb:hover { color: var(--accent-2); }
+
+.canvas { flex: 1; overflow: auto; padding: 16px; }
+
+#codePane {
+  flex: 0 0 34%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+}
+#codePane pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  flex: 1;
+  background: #0b1220;
+  color: #cbd5e1;
+  font: 12px/1.55 ui-monospace, Consolas, "Courier New", monospace;
+  white-space: pre;
+}
+
+/* ————— 画布中的节点 ————— */
+.node { position: relative; }
+.node.sel { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+
+.node-tag {
+  font-size: 10px;
+  color: var(--accent-2);
+  background: rgba(59, 130, 246, .15);
+  border: 1px solid rgba(59, 130, 246, .4);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-right: 4px;
+  user-select: none;
+}
+
+.slot { min-height: 6px; }
+.slot.hover { background: rgba(59, 130, 246, .25); border-radius: 3px; }
+.empty-slot {
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+}
+.empty-slot.hover { border-color: var(--accent); color: var(--accent-2); background: rgba(59,130,246,.08); }
+
+.drop-hint { color: var(--muted); font-size: 12px; }
+
+/* 近似预览 */
+.pv { pointer-events: auto; }
+.pv-text { color: var(--text); }
+.pv-button {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 14px;
+}
+.pv-icon {
+  display: inline-block;
+  color: var(--accent-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.pv-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+}
+.pv-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-2);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  min-width: 60px;
+  min-height: 40px;
+  font-size: 11px;
+}
+.pv-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: var(--muted);
+}
+.pv-checkbox { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+
+/* ————— 属性面板 ————— */
+#inspectorBody { padding: 10px; overflow: auto; }
+.prop { margin-bottom: 10px; }
+.prop label { display: block; color: var(--muted); margin-bottom: 4px; font-size: 12px; }
+.prop input[type=text], .prop input[type=number], .prop select, .prop textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 5px 7px;
+  font: inherit;
+}
+.prop textarea { min-height: 56px; resize: vertical; }
+.prop input[type=color] { width: 100%; height: 28px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.prop .row { display: flex; align-items: center; gap: 8px; }
+.prop .row input[type=checkbox] { width: auto; }
+.unset-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mini { font-size: 11px; padding: 3px 8px; }
+.muted { color: var(--muted); }

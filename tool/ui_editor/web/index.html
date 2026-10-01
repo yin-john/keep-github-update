@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GRKU UI 编辑器</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header id="topbar">
+  <span class="brand">GRKU UI 编辑器</span>
+  <label class="field">类名
+    <input id="className" value="MyWidget" spellcheck="false" autocomplete="off">
+  </label>
+  <span class="spacer"></span>
+  <span id="status" class="status"></span>
+  <button id="btnNew" type="button">新建</button>
+  <button id="btnSave" type="button" class="primary">保存 (Ctrl+S)</button>
+</header>
+
+<main>
+  <aside id="palette">
+    <div class="pane-title">组件</div>
+    <input id="paletteSearch" type="search" placeholder="搜索组件…" autocomplete="off">
+    <div id="paletteList"></div>
+  </aside>
+
+  <section id="canvasWrap">
+    <div id="breadcrumb"></div>
+    <div id="canvas" class="canvas"></div>
+    <div id="codePane">
+      <div class="pane-title">代码预览 <span class="hint">（与保存结果一致）</span></div>
+      <pre><code id="code"></code></pre>
+    </div>
+  </section>
+
+  <aside id="inspector">
+    <div class="pane-title">属性</div>
+    <div id="inspectorBody"></div>
+  </aside>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
