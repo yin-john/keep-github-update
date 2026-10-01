@@ -21,6 +21,7 @@ import 'dart:math';
 
 import 'package:args/args.dart';
 
+import 'ui_editor/format.dart';
 import 'ui_editor/project.dart';
 import 'ui_editor/server.dart';
 
@@ -46,7 +47,10 @@ Future<void> main(List<String> argv) async {
     token: token,
     port: port,
     host: args.option('host') ?? '127.0.0.1',
-    formatOnSave: args.flag('format'),
+    // 只有以源码形式跑在 Dart VM 下才可能安全调用 `dart format`；AOT 可执行
+    // 文件里 `Platform.resolvedExecutable` 指向本程序自己，会再起一个编辑器
+    // 服务并挂死保存请求（见 format.dart）。
+    formatOnSave: args.flag('format') && canRunDartFormat(),
   );
 
   final localUrl = 'http://127.0.0.1:${server.port}/?token=$token';
