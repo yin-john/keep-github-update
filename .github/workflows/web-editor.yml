@@ -1,0 +1,76 @@
+name: Web Editor
+
+# 只在 web-editor 分支上构建「可视化 UI 编辑器」的可执行产物。
+#
+# 编辑器是**纯 Dart**（只依赖 args / path），不需要 Flutter SDK，因此这里用
+# 最小依赖工程 + `dart compile exe` 编成单文件可执行，再连同 web 静态资源打包。
+# 产物拉回本地后无需任何 SDK 即可运行：
+#
+#   tar -xzf ui_editor-linux-x64.tar.gz -C /some/dir
+#   cd <仓库根> && /some/dir/ui_editor --port 8765 --no-open
+#
+# 之所以固定 ubuntu-22.04：它的 glibc 是 2.35，编出的二进制在更新的发行版
+# （如 Debian 13 / glibc 2.41）上也能直接跑。
+on:
+  push:
+    branches: [web-editor]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-editor:
+    name: 构建 UI 编辑器（Linux x64）
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      # 刻意不复用仓库根 pubspec.yaml：那个 pubspec 依赖 Flutter SDK，
+      # 会把整个 Flutter 工具链拖进来。编辑器本身只需要 args / path。
+      - name: 准备最小依赖工程
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/ed
+          mkdir -p /tmp/ed
+          cp -a tool /tmp/ed/
+          {
+            echo 'name: ui_editor'
+            echo "publish_to: 'none'"
+            echo 'environment:'
+            echo "  sdk: '>=3.3.0 <4.0.0'"
+            echo 'dependencies:'
+            echo '  args: ^2.5.0'
+            echo '  path: any'
+          } > /tmp/ed/pubspec.yaml
+          cd /tmp/ed
+          dart pub get
+
+      - name: 编译单文件可执行
+        run: |
+          set -euo pipefail
+          cd /tmp/ed
+          dart compile exe tool/ui_editor.dart -o ui_editor
+
+      - name: 组装产物
+        run: |
+          set -euo pipefail
+          mkdir -p dist/web
+          cp /tmp/ed/ui_editor dist/ui_editor
+          cp tool/ui_editor/web/index.html dist/web/
+          cp tool/ui_editor/web/app.js dist/web/
+          cp tool/ui_editor/web/style.css dist/web/
+          ls -lR dist
+          tar -czf ui_editor-linux-x64.tar.gz -C dist .
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui_editor-linux-x64
+          path: ui_editor-linux-x64.tar.gz
+          if-no-files-found: error
